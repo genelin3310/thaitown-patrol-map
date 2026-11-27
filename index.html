@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>瓦城年度巡檢戰情地圖 v2.2｜年度巡檢進度系統</title>
+    <title>瓦城年度巡檢戰情地圖 v2.4｜年度巡檢進度系統</title>
     <!-- 載入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 載入 Leaflet 1.9.4 標準 CDN -->
@@ -76,6 +76,7 @@
                 flex: 1;
                 height: 100dvh;
                 min-height: 450px;
+                position: relative;
                 order: 2;
             }
         }
@@ -235,65 +236,62 @@
     <div class="app-shell">
         <!-- 左側（手機版：統計與清單分頁）：戰情統計儀表板與門店進度清單 -->
         <aside id="sidebar-panel" class="sidebar-wrapper shadow-xl mobile-view-hidden">
-            <!-- 1. 頂部標題列與系統基準日 -->
-            <div class="p-3 bg-slate-900 text-white shrink-0 border-b border-slate-800">
-                <div class="flex items-center justify-between gap-2">
-                    <div class="flex items-center gap-2 min-w-0">
-                        <!-- 瓦城官方品牌識別 LOGO（正紅底色 + 白色圓潤筆觸「瓦城 THAI TOWN」） -->
-                        <div class="w-9 h-9 rounded-xl bg-[#D90B17] border border-red-400/40 flex items-center justify-center shrink-0 shadow-md overflow-hidden" title="瓦城 THAI TOWN">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 100 100" class="w-full h-full">
-                                <rect width="100" height="100" fill="#D90B17"/>
-                                <g fill="none" stroke="#FFFFFF" stroke-width="6.2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M16 33 Q28 31 40 28"/>
-                                    <path d="M23 33 L18 55 C17 61 21 63 26 59 L34 52"/>
-                                    <path d="M20 43 C27 40 34 42 34 49 C34 56 38 61 45 59"/>
-                                    <path d="M47 41 L57 39"/>
-                                    <path d="M52 30 L52 55"/>
-                                    <path d="M46 57 L58 51"/>
-                                    <path d="M59 35 L82 31"/>
-                                    <path d="M62 35 L61 48 C61 55 58 60 54 63"/>
-                                    <path d="M62 45 L71 43 C73 43 73 46 72 51 C71 55 68 56 66 54"/>
-                                    <path d="M67 24 C71 39 76 53 84 61"/>
-                                    <path d="M83 41 C79 50 72 57 63 62"/>
-                                </g>
-                                <circle cx="26.5" cy="49.5" r="2.6" fill="#FFFFFF"/>
-                                <circle cx="77" cy="23.5" r="3.2" fill="#FFFFFF"/>
-                                <text x="50" y="79" text-anchor="middle" fill="#FFFFFF" font-family="'Inter', sans-serif" font-weight="800" font-size="13.5" letter-spacing="0.8">THAI TOWN</text>
-                            </svg>
-                        </div>
-                        <div class="min-w-0">
-                            <h1 class="text-[13px] font-extrabold tracking-tight truncate">瓦城年度巡檢戰情地圖 v2.2</h1>
-                            <p id="today-date-label" class="text-[10.5px] text-slate-400 font-mono truncate">今日基準：載入中...</p>
-                        </div>
+            <!-- 1. 頂部標題列與系統基準日（雙層排版：第一排完整顯示標題與日期，第二排整齊排列功能按鈕） -->
+            <div class="p-3 bg-slate-900 text-white shrink-0 border-b border-slate-800 space-y-2">
+                <!-- 第一排：品牌 LOGO + 完整標題 + 今日基準日 -->
+                <div class="flex items-center gap-2.5">
+                    <!-- 瓦城官方品牌識別 LOGO（正紅底色 + 白色圓潤筆觸「瓦城 THAI TOWN」） -->
+                    <div class="w-9 h-9 rounded-xl bg-[#D90B17] border border-red-400/40 flex items-center justify-center shrink-0 shadow-md overflow-hidden" title="瓦城 THAI TOWN">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 100 100" class="w-full h-full">
+                            <rect width="100" height="100" fill="#D90B17"/>
+                            <g fill="none" stroke="#FFFFFF" stroke-width="6.2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M16 33 Q28 31 40 28"/>
+                                <path d="M23 33 L18 55 C17 61 21 63 26 59 L34 52"/>
+                                <path d="M20 43 C27 40 34 42 34 49 C34 56 38 61 45 59"/>
+                                <path d="M47 41 L57 39"/>
+                                <path d="M52 30 L52 55"/>
+                                <path d="M46 57 L58 51"/>
+                                <path d="M59 35 L82 31"/>
+                                <path d="M62 35 L61 48 C61 55 58 60 54 63"/>
+                                <path d="M62 45 L71 43 C73 43 73 46 72 51 C71 55 68 56 66 54"/>
+                                <path d="M67 24 C71 39 76 53 84 61"/>
+                                <path d="M83 41 C79 50 72 57 63 62"/>
+                            </g>
+                            <circle cx="26.5" cy="49.5" r="2.6" fill="#FFFFFF"/>
+                            <circle cx="77" cy="23.5" r="3.2" fill="#FFFFFF"/>
+                            <text x="50" y="79" text-anchor="middle" fill="#FFFFFF" font-family="'Inter', sans-serif" font-weight="800" font-size="13.5" letter-spacing="0.8">THAI TOWN</text>
+                        </svg>
                     </div>
-                    <div class="flex items-center gap-1 shrink-0">
-                        <!-- 重新同步雲端按鈕 -->
-                        <button id="btn-sync-cloud" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 text-[11px] font-semibold border border-slate-700 transition cursor-pointer" title="從雲端試算表重新抓回最新進度">
-                            🔄
-                        </button>
-                        <!-- 管理員權限切換按鈕 -->
-                        <button id="btn-admin-toggle" class="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-[11px] font-bold border border-amber-500/40 transition cursor-pointer" title="工程師唯讀模式／點擊解鎖管理員編輯">
-                            🔒 唯讀
-                        </button>
-                        <!-- 僅管理員解鎖後顯示：變更管理密碼 -->
-                        <button id="btn-change-pwd" class="hidden px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-200 text-[11px] font-semibold border border-amber-500/40 transition cursor-pointer" title="變更雲端管理員密碼">
-                            🔑 改密碼
-                        </button>
-                        <!-- 僅管理員解鎖後顯示：匯入 CSV -->
-                        <input type="file" id="input-import-csv" accept=".csv" class="hidden" />
-                        <button id="btn-import-csv" class="hidden px-2 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-[11px] font-semibold border border-emerald-500/60 transition cursor-pointer" title="匯入進度 CSV 並同步寫入雲端">
-                            匯入
-                        </button>
-                        <button id="btn-export-csv" class="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold border border-slate-700 transition cursor-pointer" title="匯出目前進度 CSV 報表">
-                            匯出
-                        </button>
+                    <div class="min-w-0 flex-1">
+                        <h1 class="text-[14px] font-extrabold tracking-tight leading-snug text-white">瓦城年度巡檢戰情地圖 v2.4</h1>
+                        <p id="today-date-label" class="text-[11px] text-slate-300 font-mono leading-tight mt-0.5">今日基準：載入中...</p>
                     </div>
                 </div>
 
-                <!-- 通知橫幅（取代 alert） -->
-                <div id="toast-banner" class="hidden mt-2 px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center justify-between transition">
-                    <span id="toast-message"></span>
-                    <button onclick="document.getElementById('toast-banner').classList.add('hidden')" class="ml-2 opacity-75 hover:opacity-100 cursor-pointer">✕</button>
+                <!-- 第二排：功能操作按鈕列（唯讀僅顯示同步與唯讀；管理員解鎖後左側為同步/管理員/改密碼，右側靠右為匯入/匯出） -->
+                <div class="flex items-center justify-between gap-1.5 pt-1.5 border-t border-slate-800/90">
+                    <!-- 左側操作群組 -->
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <button id="btn-sync-cloud" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 text-[11px] font-semibold border border-slate-700 transition cursor-pointer" title="從雲端試算表重新抓回最新進度">
+                            🔄 同步
+                        </button>
+                        <button id="btn-admin-toggle" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-[11px] font-bold border border-amber-500/40 transition cursor-pointer" title="工程師唯讀模式／點擊解鎖管理員編輯">
+                            🔒 唯讀
+                        </button>
+                        <button id="btn-change-pwd" class="hidden px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-200 text-[11px] font-semibold border border-amber-500/40 transition cursor-pointer" title="變更雲端管理員密碼">
+                            🔑 改密碼
+                        </button>
+                    </div>
+                    <!-- 右側檔案群組（僅管理員解鎖後顯示，靠右排列：匯入、匯出） -->
+                    <div id="admin-file-actions" class="hidden flex items-center gap-1.5 shrink-0">
+                        <input type="file" id="input-import-csv" accept=".csv" class="hidden" />
+                        <button id="btn-import-csv" class="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-[11px] font-semibold border border-emerald-500/60 transition cursor-pointer" title="匯入進度 CSV 並同步寫入雲端">
+                            匯入
+                        </button>
+                        <button id="btn-export-csv" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold border border-slate-700 transition cursor-pointer" title="匯出目前進度 CSV 報表">
+                            匯出
+                        </button>
+                    </div>
                 </div>
 
                 <!-- 2. 雙軌進度率統計條（上方：已完成率雙色條 [左已登錄/右已完成] / 下方：未完成率雙色條 [左未排程/右今日排程]） -->
@@ -392,12 +390,18 @@
                 <!-- 由 JavaScript 動態生成 -->
             </div>
 
-            <!-- 底部圖資與雲端同步狀態提示 -->
-            <div class="px-3.5 py-2 bg-white border-t border-slate-200 text-[11px] text-slate-500 flex items-center justify-between shrink-0">
-                <span>底圖：NLSC 臺灣通用電子地圖</span>
-                <span id="save-indicator" class="text-sky-600 font-semibold flex items-center gap-1">
-                    <span class="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse"></span>連線雲端資料庫...
-                </span>
+            <!-- 底部圖資、雲端同步狀態與系統即時通知列（原位顯示不跳動） -->
+            <div id="bottom-status-bar" class="px-3.5 py-2 bg-white border-t border-slate-200 text-[11px] text-slate-500 flex items-center justify-between shrink-0 transition-colors">
+                <div id="bottom-default-view" class="w-full flex items-center justify-between gap-2">
+                    <span class="truncate">底圖：NLSC 臺灣通用電子地圖</span>
+                    <span id="save-indicator" class="text-sky-600 font-semibold flex items-center gap-1 shrink-0">
+                        <span class="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse"></span>連線雲端資料庫...
+                    </span>
+                </div>
+                <div id="bottom-toast-view" class="hidden w-full flex items-center justify-between gap-2 font-bold">
+                    <span id="toast-message" class="truncate"></span>
+                    <button type="button" onclick="hideBottomToast()" class="ml-1 opacity-75 hover:opacity-100 shrink-0 cursor-pointer">✕</button>
+                </div>
             </div>
         </aside>
 
@@ -413,8 +417,8 @@
                 <span>總覽篩選門店</span>
             </button>
 
-            <!-- 左下角四色燈號圖例懸浮卡 -->
-            <div class="hidden sm:flex absolute bottom-3 left-3 z-[1000] bg-white/95 backdrop-blur-sm px-3.5 py-2 rounded-xl shadow-md border border-slate-200 text-[11px] text-slate-700 items-center gap-3.5">
+            <!-- 地圖左下方：四色燈號圖例懸浮卡（定位於右側地圖區域內，絕不遮擋左側門店清單） -->
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 absolute bottom-3 left-3 z-[1000] bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-xl shadow-md border border-slate-200 text-[11px] text-slate-700 max-w-[calc(100%-24px)]">
                 <span class="font-bold text-slate-800">燈號圖例：</span>
                 <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-[#64748B]"></span>未排程</span>
                 <span class="flex items-center gap-1 font-bold text-amber-700"><span class="w-2.5 h-2.5 rounded-full bg-[#F59E0B]"></span>今日排程</span>
@@ -561,39 +565,18 @@
             return `${yyyy}-${mm}-${dd}`;
         }
 
-        function sanitizeDateString(rawDate) {
-            if (!rawDate) return '';
-            const str = String(rawDate).replace(/^'/, '').trim();
-            if (!str || str === '未排程') return '';
-            if (str.includes('T')) {
-                const parsed = new Date(str);
-                if (!isNaN(parsed.getTime())) {
-                    const yyyy = parsed.getFullYear();
-                    const mm = String(parsed.getMonth() + 1).padStart(2, '0');
-                    const dd = String(parsed.getDate()).padStart(2, '0');
-                    return `${yyyy}-${mm}-${dd}`;
-                }
-            }
-            const match = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-            if (match) {
-                return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
-            }
-            return '';
-        }
-
         const TODAY_STR = getLocalTodayString();
         const CLOUD_API_URL = 'https://script.google.com/macros/s/AKfycbzxfyeptRFJ9eCXhRmmJl1OhuGbFCp4JXxkBX1nZRg3_OKBWkeGMdpfpRuyjEP-UNdN/exec';
 
-        const STORAGE_KEY = 'thai_town_inspection_v2_2_83stores';
-        const ADMIN_PWD_SESSION_KEY = 'thai_town_admin_pwd_v2_2';
+        const STORAGE_KEY = 'thai_town_inspection_v2_4_83stores';
+        const ADMIN_PWD_SESSION_KEY = 'thai_town_admin_pwd_v2_4';
         const PREV_STORAGE_KEYS = [
+            'thai_town_inspection_v2_3_83stores',
+            'thai_town_inspection_v2_2_83stores',
             'thai_town_inspection_v2_1_83stores',
             'thai_town_inspection_v2_0_83stores',
             'thai_town_inspection_v1_9_83stores',
-            'thai_town_inspection_v1_8_83stores',
-            'thai_town_inspection_v1_7_83stores',
-            'thai_town_inspection_v1_6_83stores',
-            'thai_town_inspection_v1_5_83stores'
+            'thai_town_inspection_v1_8_83stores'
         ];
         const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -797,8 +780,28 @@
         ];
 
         // ==========================================
-        // 4. 狀態管理：本地快取 + Google 試算表雲端雙向同步 (POST JSON 防截斷通道)
+        // 4. 狀態管理：本地快取 + Google 試算表雲端雙向同步 (POST JSON 通道)
         // ==========================================
+        function sanitizeDateString(rawDate) {
+            if (!rawDate) return '';
+            const str = String(rawDate).replace(/^'/, '').trim();
+            if (!str) return '';
+            if (str.includes('T')) {
+                const d = new Date(str);
+                if (!isNaN(d.getTime())) {
+                    const yyyy = d.getFullYear();
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    return `${yyyy}-${mm}-${dd}`;
+                }
+            }
+            const m = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+            if (m) {
+                return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+            }
+            return '';
+        }
+
         function loadLocalFallbackState() {
             try {
                 let raw = localStorage.getItem(STORAGE_KEY);
@@ -851,13 +854,13 @@
             const indicator = document.getElementById('save-indicator');
             if (!indicator) return;
             if (type === 'syncing') {
-                indicator.className = 'text-sky-600 font-semibold flex items-center gap-1';
+                indicator.className = 'text-sky-600 font-semibold flex items-center gap-1 shrink-0';
                 indicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-sky-500 animate-ping"></span>${text}`;
             } else if (type === 'ok') {
-                indicator.className = 'text-emerald-600 font-semibold flex items-center gap-1';
+                indicator.className = 'text-emerald-600 font-semibold flex items-center gap-1 shrink-0';
                 indicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>${text}`;
             } else {
-                indicator.className = 'text-amber-600 font-semibold flex items-center gap-1';
+                indicator.className = 'text-amber-600 font-semibold flex items-center gap-1 shrink-0';
                 indicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>${text}`;
             }
         }
@@ -893,8 +896,8 @@
                         renderAll();
                         refreshOpenPopup();
                         const timeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false });
-                        setSyncIndicator('ok', `雲端已同步 (${timeStr})`);
-                        if (!silent) showToast('已從雲端試算表同步最新進度！', true);
+                        setSyncIndicator('ok', `雲端已同步 ${recordKeys.length} 店 (${timeStr})`);
+                        if (!silent) showToast(`已從雲端試算表同步最新進度（共 ${recordKeys.length} 店）！`, true);
                     } else {
                         saveLocalCache();
                         renderAll();
@@ -911,7 +914,7 @@
             }
         }
 
-        // 管理員單店即時寫入 Google 試算表（使用 POST text/plain JSON 封包，避免 URL 長度與轉址問題）
+        // 管理員單店即時寫入 Google 試算表（使用 POST JSON 通道）
         async function pushSingleStoreToCloud(store) {
             if (!isAdminMode || !adminPassword) return;
             setSyncIndicator('syncing', `寫入 ${store.id} 至雲端...`);
@@ -934,6 +937,7 @@
                 if (json && json.success) {
                     const timeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false });
                     setSyncIndicator('ok', `雲端已儲存 (${timeStr})`);
+                    showToast(`${store.id} ${store.name} 已同步儲存至雲端！`, true);
                 } else {
                     setSyncIndicator('warn', '雲端寫入遭拒');
                     showToast(`雲端同步失敗：${(json && json.error) || '密碼驗證未通過'}`, false);
@@ -945,7 +949,7 @@
             }
         }
 
-        // 管理員整批同步 83 店至 Google 試算表（使用 POST JSON 陣列，徹底突破 GET 長度上限）
+        // 管理員整批同步 83 店至 Google 試算表（使用 POST JSON 封包，徹底突破 GET 長度限制）
         async function syncAllStoresToCloud(isInit = false) {
             if (!isAdminMode || !adminPassword) return false;
             setSyncIndicator('syncing', '整批寫入雲端試算表...');
@@ -1013,23 +1017,23 @@
         function updateAdminUI() {
             const btnAdmin = document.getElementById('btn-admin-toggle');
             const btnChangePwd = document.getElementById('btn-change-pwd');
-            const btnImport = document.getElementById('btn-import-csv');
+            const adminFileActions = document.getElementById('admin-file-actions');
             if (btnAdmin) {
                 if (isAdminMode) {
                     btnAdmin.innerHTML = '🔓 管理員';
-                    btnAdmin.className = 'px-2 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-extrabold border border-amber-400 shadow-xs transition cursor-pointer';
+                    btnAdmin.className = 'px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-extrabold border border-amber-400 shadow-xs transition cursor-pointer';
                     btnAdmin.title = '目前已解鎖管理員編輯權限（點擊可鎖定回唯讀模式）';
                 } else {
                     btnAdmin.innerHTML = '🔒 唯讀';
-                    btnAdmin.className = 'px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-[11px] font-bold border border-amber-500/40 transition cursor-pointer';
+                    btnAdmin.className = 'px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-[11px] font-bold border border-amber-500/40 transition cursor-pointer';
                     btnAdmin.title = '工程師唯讀檢視模式（點擊輸入密碼解鎖編輯）';
                 }
             }
             if (btnChangePwd) {
                 btnChangePwd.classList.toggle('hidden', !isAdminMode);
             }
-            if (btnImport) {
-                btnImport.classList.toggle('hidden', !isAdminMode);
+            if (adminFileActions) {
+                adminFileActions.classList.toggle('hidden', !isAdminMode);
             }
             renderAll();
             refreshOpenPopup();
@@ -1260,9 +1264,9 @@
         }
 
         // ==========================================
-        // 8. 品牌快速篩選膠囊渲染（指定排序與子品牌歸併）
+        // 8. 品牌快速篩選膠囊渲染（固定 12 品牌排序與子品牌歸併）
         // ==========================================
-        const BRAND_FILTER_ORDER = [
+        const BRAND_DISPLAY_ORDER = [
             'ALL',
             '瓦城',
             '1010湘',
@@ -1278,17 +1282,16 @@
         ];
 
         function normalizeBrandGroup(rawBrand) {
-            const b = String(rawBrand || '').trim();
-            if (b === '大心MARKET' || b === '大心EXPRESS') return '大心';
-            if (b === '1010湘食堂') return '1010湘';
-            if (b === '瓦城EXPRESS') return '瓦城';
-            return b;
+            if (rawBrand === '大心MARKET' || rawBrand === '大心EXPRESS') return '大心';
+            if (rawBrand === '1010湘食堂') return '1010湘';
+            if (rawBrand === '瓦城EXPRESS') return '瓦城';
+            return rawBrand;
         }
 
         function renderBrandFilters() {
             const container = document.getElementById('brand-filter-bar');
             if (!container) return;
-            container.innerHTML = BRAND_FILTER_ORDER.map(brand => {
+            container.innerHTML = BRAND_DISPLAY_ORDER.map(brand => {
                 const isActive = brandFilter === brand;
                 const label = brand === 'ALL' ? `全品牌 (${storesData.length})` : brand;
                 const activeClasses = isActive
@@ -1358,8 +1361,13 @@
             };
         }
 
+        function formatDisplayDate(dateStr) {
+            if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return '年 / 月 / 日';
+            return dateStr.replace(/-/g, ' / ');
+        }
+
         // ==========================================
-        // 11. 建立彈出操作小卡 HTML（第 1 處日期選擇器：地圖小圖卡）
+        // 11. 建立彈出操作小卡 HTML（使用自訂月曆觸發鈕）
         // ==========================================
         function createPopupHTML(store, statusMeta) {
             const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${store.lat},${store.lng}`;
@@ -1371,15 +1379,15 @@
                 <div>
                     <div class="flex justify-between items-center mb-1">
                         <label class="font-bold text-slate-700">巡檢／完成日期</label>
-                        <button onclick="setTodaySchedule('${store.id}')" class="text-[11px] text-amber-600 hover:text-amber-700 font-bold underline cursor-pointer">
+                        <button type="button" onclick="setTodaySchedule('${store.id}')" class="text-[11px] text-amber-600 hover:text-amber-700 font-bold underline cursor-pointer">
                             設為今日 (${TODAY_STR.slice(5)})
                         </button>
                     </div>
                     <div class="flex items-center gap-1.5">
                         <button type="button" onclick="openCustomCalendar(event, '${store.id}')"
-                                class="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 hover:border-amber-500 bg-white text-xs font-mono text-slate-800 flex items-center justify-between transition cursor-pointer">
-                            <span>${store.scheduledDate ? store.scheduledDate.replace(/-/g, ' / ') : '請選擇日期'}</span>
-                            <span class="text-slate-500 text-xs">📅</span>
+                                class="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:border-amber-500 text-xs font-mono text-slate-800 flex items-center justify-between transition cursor-pointer">
+                            <span class="${store.scheduledDate ? 'text-slate-900 font-bold' : 'text-slate-400'}">${formatDisplayDate(store.scheduledDate)}</span>
+                            <span>📅</span>
                         </button>
                         ${store.scheduledDate ? `<button type="button" onclick="updateStoreDate('${store.id}', '')" class="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-semibold cursor-pointer">清除</button>` : ''}
                     </div>
@@ -1389,15 +1397,15 @@
                 <div>
                     <div class="font-bold text-slate-700 mb-1">巡檢進度狀態</div>
                     <div class="grid grid-cols-3 gap-1.5">
-                        <button onclick="updateStoreManualStatus('${store.id}', 'UNSCHEDULED')"
+                        <button type="button" onclick="updateStoreManualStatus('${store.id}', 'UNSCHEDULED')"
                                 class="py-1.5 px-1 rounded-lg border text-[11px] font-bold transition cursor-pointer ${store.manualStatus === 'UNSCHEDULED' ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}">
                             待排/排程
                         </button>
-                        <button onclick="updateStoreManualStatus('${store.id}', 'COMPLETED')"
+                        <button type="button" onclick="updateStoreManualStatus('${store.id}', 'COMPLETED')"
                                 class="py-1.5 px-1 rounded-lg border text-[11px] font-bold transition cursor-pointer ${store.manualStatus === 'COMPLETED' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50'}">
                             已完成
                         </button>
-                        <button onclick="updateStoreManualStatus('${store.id}', 'LOGGED')"
+                        <button type="button" onclick="updateStoreManualStatus('${store.id}', 'LOGGED')"
                                 class="py-1.5 px-1 rounded-lg border text-[11px] font-bold transition cursor-pointer ${store.manualStatus === 'LOGGED' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'}">
                             已登錄
                         </button>
@@ -1468,7 +1476,7 @@
             }
             const store = storesData.find(s => s.id === storeId);
             if (!store) return;
-            store.scheduledDate = sanitizeDateString(dateStr);
+            store.scheduledDate = dateStr;
             saveLocalCache();
             renderAll();
             refreshOpenPopup();
@@ -1494,7 +1502,7 @@
         };
 
         // ==========================================
-        // 13. 統計計算與渲染
+        // 13. 統計計算與渲染（支援歸併後品牌篩選）
         // ==========================================
         function updateStatistics() {
             const scopeStores = storesData.filter(s => {
@@ -1724,16 +1732,16 @@
                 const footerActionHTML = isAdminMode ? `
                     <div class="mt-2.5 pt-2.5 border-t border-slate-100 flex items-center gap-1.5" onclick="event.stopPropagation()">
                         <button type="button" onclick="openCustomCalendar(event, '${store.id}')"
-                                title="點選開啟月曆設定巡檢日期"
-                                class="px-2.5 py-1 rounded-lg border border-slate-300 hover:border-amber-500 text-[11px] font-mono text-slate-700 bg-slate-50 hover:bg-white flex items-center gap-1.5 transition cursor-pointer">
-                            <span>${store.scheduledDate ? store.scheduledDate.replace(/-/g, ' / ') : '設定日期'}</span>
-                            <span class="text-[11px]">📅</span>
+                                title="點擊開啟月曆設定預計巡檢日期"
+                                class="px-2.5 py-1 rounded-lg border border-slate-300 text-[11px] font-mono text-slate-700 bg-slate-50 hover:bg-white hover:border-amber-500 flex items-center gap-1.5 transition cursor-pointer">
+                            <span class="${store.scheduledDate ? 'text-slate-900 font-bold' : 'text-slate-400'}">${formatDisplayDate(store.scheduledDate)}</span>
+                            <span>📅</span>
                         </button>
-                        <button onclick="updateStoreManualStatus('${store.id}', 'COMPLETED')"
+                        <button type="button" onclick="updateStoreManualStatus('${store.id}', 'COMPLETED')"
                                 class="px-2 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer ${store.manualStatus === 'COMPLETED' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50'}">
                             已完成
                         </button>
-                        <button onclick="updateStoreManualStatus('${store.id}', 'LOGGED')"
+                        <button type="button" onclick="updateStoreManualStatus('${store.id}', 'LOGGED')"
                                 class="px-2 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer ${store.manualStatus === 'LOGGED' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'}">
                             已登錄
                         </button>
@@ -1792,7 +1800,6 @@
             const marker = markersMap[storeId];
             if (!store || !marker) return;
 
-            // 手機版若從「統計與門店清單」分頁點擊門店，自動切回滿版「戰情地圖」分頁再飛越定位
             if (window.innerWidth < 768 && flyToLocation) {
                 window.switchMobileTab('MAP');
             }
@@ -1868,26 +1875,44 @@
         };
 
         // ==========================================
-        // 17. 匯出與匯入進度 CSV 報表
+        // 17. 匯出與匯入進度 CSV 報表（底部狀態列原位通知）
         // ==========================================
+        window.hideBottomToast = function() {
+            const bar = document.getElementById('bottom-status-bar');
+            const defaultView = document.getElementById('bottom-default-view');
+            const toastView = document.getElementById('bottom-toast-view');
+            if (!bar || !defaultView || !toastView) return;
+            bar.className = 'px-3.5 py-2 bg-white border-t border-slate-200 text-[11px] text-slate-500 flex items-center justify-between shrink-0 transition-colors';
+            toastView.classList.add('hidden');
+            defaultView.classList.remove('hidden');
+        };
+
         function showToast(message, isSuccess = true) {
-            const banner = document.getElementById('toast-banner');
+            const bar = document.getElementById('bottom-status-bar');
+            const defaultView = document.getElementById('bottom-default-view');
+            const toastView = document.getElementById('bottom-toast-view');
             const msgEl = document.getElementById('toast-message');
-            if (!banner || !msgEl) return;
-            msgEl.textContent = message;
-            banner.className = `mt-2 px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center justify-between transition ${
-                isSuccess
-                    ? 'bg-emerald-900/90 text-emerald-200 border border-emerald-600'
-                    : 'bg-rose-900/90 text-rose-200 border border-rose-600'
-            }`;
-            banner.classList.remove('hidden');
+            if (!bar || !defaultView || !toastView || !msgEl) return;
+
+            msgEl.textContent = isSuccess ? `✅ ${message}` : `⚠️ ${message}`;
+            bar.className = isSuccess
+                ? 'px-3.5 py-2 bg-emerald-600 border-t border-emerald-500 text-[11px] text-white flex items-center justify-between shrink-0 transition-colors'
+                : 'px-3.5 py-2 bg-rose-600 border-t border-rose-500 text-[11px] text-white flex items-center justify-between shrink-0 transition-colors';
+
+            defaultView.classList.add('hidden');
+            toastView.classList.remove('hidden');
+
             clearTimeout(window._toastTimer);
             window._toastTimer = setTimeout(() => {
-                banner.classList.add('hidden');
-            }, 5000);
+                window.hideBottomToast();
+            }, 4500);
         }
 
         function exportProgressCSV() {
+            if (!isAdminMode) {
+                showToast('僅管理員可匯出進度報表。', false);
+                return;
+            }
             const headers = ['門店名稱', '店號', '店名', '品牌', '縣市', '行政區', '商場', '地址', '排程日期', '目前燈號狀態', '緯度', '經度'];
             const rows = storesData.map(s => {
                 const stLabel = resolveStoreStatus(s).label;
@@ -1898,7 +1923,7 @@
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', `瓦城年度巡檢戰情地圖_v2.2_${TODAY_STR}.csv`);
+            link.setAttribute('download', `瓦城年度巡檢戰情地圖_v2.4_${TODAY_STR}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
