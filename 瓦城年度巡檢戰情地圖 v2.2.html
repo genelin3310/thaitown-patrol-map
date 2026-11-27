@@ -1,0 +1,2280 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>瓦城年度巡檢戰情地圖 v2.2｜年度巡檢進度系統</title>
+    <!-- 載入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 載入 Leaflet 1.9.4 標準 CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- 載入 Google Fonts: Inter 與 Noto Sans TC -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* 強制設定滿版視窗高度 (100dvh)，防止預覽視窗與行動裝置高度塌陷 */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100dvh;
+            overflow: hidden;
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        /* 響應式主容器：手機版滿版視圖切換，桌面版左右雙欄 */
+        .app-shell {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100dvh;
+        }
+
+        /* 手機版 (< 768px)：預留底部 56px 分頁導覽列，地圖與清單各自獨立滿版呈現 */
+        @media (max-width: 767px) {
+            .app-shell {
+                height: calc(100dvh - 56px);
+            }
+            .map-wrapper {
+                width: 100%;
+                height: 100%;
+                position: relative;
+                background-color: #e2e8f0;
+            }
+            .sidebar-wrapper {
+                width: 100%;
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+                background-color: #ffffff;
+                z-index: 20;
+            }
+            .mobile-view-hidden {
+                display: none !important;
+            }
+        }
+
+        /* 桌面版 (>= 768px)：左側邊欄 415px，右側滿版地圖 100dvh（維持原架構不變） */
+        @media (min-width: 768px) {
+            .app-shell {
+                flex-direction: row;
+            }
+            .sidebar-wrapper {
+                width: 415px;
+                min-width: 415px;
+                height: 100dvh;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                border-top: none;
+                border-right: 1px solid #cbd5e1;
+                order: 1;
+            }
+            .map-wrapper {
+                flex: 1;
+                height: 100dvh;
+                min-height: 450px;
+                order: 2;
+            }
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* 自訂 Leaflet DivIcon 狀態燈號膠囊標記 */
+        .custom-store-icon {
+            background: transparent;
+            border: none;
+        }
+
+        .store-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 9999px;
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+            white-space: nowrap;
+            border: 2px solid #ffffff;
+            box-shadow: 0 3px 8px rgba(15, 23, 42, 0.35);
+            transform: translate(-50%, -100%);
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.25s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        /* 滑鼠懸停時的「店號 + 店名」浮動提示框樣式 */
+        .leaflet-tooltip.store-hover-tooltip {
+            background-color: rgba(15, 23, 42, 0.95);
+            color: #ffffff;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 5px 10px;
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            font-size: 12px;
+            font-weight: 700;
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.3);
+            white-space: nowrap;
+        }
+
+        .leaflet-tooltip-top.store-hover-tooltip::before {
+            border-top-color: rgba(15, 23, 42, 0.95);
+        }
+
+        /* 標記底部箭頭指標 */
+        .store-badge::after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 5px 4px 0;
+            border-style: solid;
+            border-color: #ffffff transparent transparent transparent;
+        }
+
+        .store-badge:hover {
+            transform: translate(-50%, -110%) scale(1.1);
+            z-index: 950 !important;
+        }
+
+        /* 今日排程呼吸脈衝與高識別度閃爍效果 */
+        @keyframes amberPulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.95), 0 0 12px rgba(245, 158, 11, 0.85), 0 3px 10px rgba(15, 23, 42, 0.45);
+                background-color: #F59E0B;
+            }
+            50% {
+                box-shadow: 0 0 0 14px rgba(245, 158, 11, 0), 0 0 18px rgba(251, 191, 36, 0.95), 0 3px 10px rgba(15, 23, 42, 0.45);
+                background-color: #D97706;
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(245, 158, 11, 0), 0 0 12px rgba(245, 158, 11, 0.85), 0 3px 10px rgba(15, 23, 42, 0.45);
+                background-color: #F59E0B;
+            }
+        }
+
+        .store-badge.today-pulse {
+            animation: amberPulse 1.35s infinite ease-in-out;
+            border-color: #FEF3C7;
+        }
+
+        /* 選中時的高亮縮放 */
+        .store-badge.selected {
+            transform: translate(-50%, -115%) scale(1.16);
+            outline: 2.5px solid #0f172a;
+            z-index: 1000 !important;
+        }
+
+        /* Leaflet 彈出視窗美化 */
+        .leaflet-popup-content-wrapper {
+            border-radius: 14px;
+            padding: 0;
+            overflow: hidden;
+            box-shadow: 0 12px 28px -5px rgba(15, 23, 42, 0.28);
+            border: 1px solid #e2e8f0;
+        }
+
+        .leaflet-popup-content {
+            margin: 0;
+            width: 300px !important;
+        }
+
+        .leaflet-container a.leaflet-popup-close-button {
+            color: #ffffff;
+            top: 9px;
+            right: 9px;
+            width: 24px;
+            height: 24px;
+            line-height: 24px;
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 50%;
+            text-align: center;
+            font-size: 16px;
+        }
+
+        .leaflet-container a.leaflet-popup-close-button:hover {
+            background: rgba(0, 0, 0, 0.45);
+            color: #ffffff;
+        }
+
+        /* 覆寫 Leaflet 預設 .leaflet-container a 連結藍色，確保小圖卡導航按鈕文字為純白色 */
+        .leaflet-container a.gmaps-nav-btn,
+        .leaflet-container a.gmaps-nav-btn:hover,
+        .leaflet-container a.gmaps-nav-btn:visited {
+            color: #ffffff !important;
+        }
+
+        /* 自訂捲軸 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-shell">
+        <!-- 左側（手機版：統計與清單分頁）：戰情統計儀表板與門店進度清單 -->
+        <aside id="sidebar-panel" class="sidebar-wrapper shadow-xl mobile-view-hidden">
+            <!-- 1. 頂部標題列與系統基準日 -->
+            <div class="p-3 bg-slate-900 text-white shrink-0 border-b border-slate-800">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <!-- 瓦城官方品牌識別 LOGO（正紅底色 + 白色圓潤筆觸「瓦城 THAI TOWN」） -->
+                        <div class="w-9 h-9 rounded-xl bg-[#D90B17] border border-red-400/40 flex items-center justify-center shrink-0 shadow-md overflow-hidden" title="瓦城 THAI TOWN">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 100 100" class="w-full h-full">
+                                <rect width="100" height="100" fill="#D90B17"/>
+                                <g fill="none" stroke="#FFFFFF" stroke-width="6.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M16 33 Q28 31 40 28"/>
+                                    <path d="M23 33 L18 55 C17 61 21 63 26 59 L34 52"/>
+                                    <path d="M20 43 C27 40 34 42 34 49 C34 56 38 61 45 59"/>
+                                    <path d="M47 41 L57 39"/>
+                                    <path d="M52 30 L52 55"/>
+                                    <path d="M46 57 L58 51"/>
+                                    <path d="M59 35 L82 31"/>
+                                    <path d="M62 35 L61 48 C61 55 58 60 54 63"/>
+                                    <path d="M62 45 L71 43 C73 43 73 46 72 51 C71 55 68 56 66 54"/>
+                                    <path d="M67 24 C71 39 76 53 84 61"/>
+                                    <path d="M83 41 C79 50 72 57 63 62"/>
+                                </g>
+                                <circle cx="26.5" cy="49.5" r="2.6" fill="#FFFFFF"/>
+                                <circle cx="77" cy="23.5" r="3.2" fill="#FFFFFF"/>
+                                <text x="50" y="79" text-anchor="middle" fill="#FFFFFF" font-family="'Inter', sans-serif" font-weight="800" font-size="13.5" letter-spacing="0.8">THAI TOWN</text>
+                            </svg>
+                        </div>
+                        <div class="min-w-0">
+                            <h1 class="text-[13px] font-extrabold tracking-tight truncate">瓦城年度巡檢戰情地圖 v2.2</h1>
+                            <p id="today-date-label" class="text-[10.5px] text-slate-400 font-mono truncate">今日基準：載入中...</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1 shrink-0">
+                        <!-- 重新同步雲端按鈕 -->
+                        <button id="btn-sync-cloud" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 text-[11px] font-semibold border border-slate-700 transition cursor-pointer" title="從雲端試算表重新抓回最新進度">
+                            🔄
+                        </button>
+                        <!-- 管理員權限切換按鈕 -->
+                        <button id="btn-admin-toggle" class="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-[11px] font-bold border border-amber-500/40 transition cursor-pointer" title="工程師唯讀模式／點擊解鎖管理員編輯">
+                            🔒 唯讀
+                        </button>
+                        <!-- 僅管理員解鎖後顯示：變更管理密碼 -->
+                        <button id="btn-change-pwd" class="hidden px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-200 text-[11px] font-semibold border border-amber-500/40 transition cursor-pointer" title="變更雲端管理員密碼">
+                            🔑 改密碼
+                        </button>
+                        <!-- 僅管理員解鎖後顯示：匯入 CSV -->
+                        <input type="file" id="input-import-csv" accept=".csv" class="hidden" />
+                        <button id="btn-import-csv" class="hidden px-2 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-[11px] font-semibold border border-emerald-500/60 transition cursor-pointer" title="匯入進度 CSV 並同步寫入雲端">
+                            匯入
+                        </button>
+                        <button id="btn-export-csv" class="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold border border-slate-700 transition cursor-pointer" title="匯出目前進度 CSV 報表">
+                            匯出
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 通知橫幅（取代 alert） -->
+                <div id="toast-banner" class="hidden mt-2 px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center justify-between transition">
+                    <span id="toast-message"></span>
+                    <button onclick="document.getElementById('toast-banner').classList.add('hidden')" class="ml-2 opacity-75 hover:opacity-100 cursor-pointer">✕</button>
+                </div>
+
+                <!-- 2. 雙軌進度率統計條（上方：已完成率雙色條 [左已登錄/右已完成] / 下方：未完成率雙色條 [左未排程/右今日排程]） -->
+                <div class="mt-2.5 p-2.5 rounded-xl bg-slate-800/85 border border-slate-700/80 space-y-2">
+                    <!-- 上方色條：已完成狀態（已登錄 + 已完成，依實際佔比等比例顯示） -->
+                    <div id="group-complete-box" class="cursor-pointer rounded-lg p-1.5 -m-1 hover:bg-slate-700/50 transition" title="點擊在地圖上篩選所有已達成門店">
+                        <div class="flex justify-between items-center text-[11px] mb-1">
+                            <span class="text-slate-200 font-bold">已完成進度（已登錄 ＋ 已完成）</span>
+                            <span id="stat-complete-rate" class="font-mono font-extrabold text-emerald-400">已完成率 0%</span>
+                        </div>
+                        <div class="w-full h-2.5 bg-slate-900/90 rounded-full overflow-hidden flex border border-slate-700/60">
+                            <div id="bar-logged" class="h-full transition-all duration-300" style="width: 0%; background-color: #2563EB;" title="已線上登錄"></div>
+                            <div id="bar-completed" class="h-full transition-all duration-300" style="width: 0%; background-color: #10B981;" title="已完成"></div>
+                        </div>
+                        <div id="sub-complete" class="text-[10px] text-slate-300 mt-1 flex items-center justify-between">
+                            <span>計算中...</span>
+                            <span class="text-slate-400 underline">篩選分布</span>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-slate-700/70"></div>
+
+                    <!-- 下方色條：未完成狀態（未排程 + 今日排程，依實際佔比等比例顯示） -->
+                    <div id="group-incomplete-box" class="cursor-pointer rounded-lg p-1.5 -m-1 hover:bg-slate-700/50 transition" title="點擊在地圖上篩選所有待完成門店">
+                        <div class="flex justify-between items-center text-[11px] mb-1">
+                            <span class="text-slate-200 font-bold">未完成進度（未排程 ＋ 今日排程）</span>
+                            <span id="stat-incomplete-rate" class="font-mono font-extrabold text-amber-400">未完成率 0%</span>
+                        </div>
+                        <div class="w-full h-2.5 bg-slate-900/90 rounded-full overflow-hidden flex border border-slate-700/60">
+                            <div id="bar-unscheduled" class="h-full transition-all duration-300" style="width: 0%; background-color: #64748B;" title="未排程"></div>
+                            <div id="bar-today" class="h-full transition-all duration-300" style="width: 0%; background-color: #F59E0B;" title="今日排程"></div>
+                        </div>
+                        <div id="sub-incomplete" class="text-[10px] text-slate-300 mt-1 flex items-center justify-between">
+                            <span>計算中...</span>
+                            <span class="text-slate-400 underline">篩選分布</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. 四色進度燈號即時統計與篩選卡 -->
+                <div class="grid grid-cols-4 gap-1.5 mt-2" id="status-filter-grid">
+                    <button data-status="UNSCHEDULED" class="status-card p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-center transition cursor-pointer">
+                        <div class="flex items-center justify-center gap-1 text-[10px] text-slate-300 font-medium">
+                            <span class="w-2 h-2 rounded-full bg-slate-400"></span>未排程
+                        </div>
+                        <div id="count-unscheduled" class="text-sm font-mono font-extrabold text-white mt-0.5">0</div>
+                    </button>
+                    <button data-status="TODAY" class="status-card p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-amber-500/40 text-center transition cursor-pointer">
+                        <div class="flex items-center justify-center gap-1 text-[10px] text-amber-300 font-bold">
+                            <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>今日排程
+                        </div>
+                        <div id="count-today" class="text-sm font-mono font-extrabold text-amber-400 mt-0.5">0</div>
+                    </button>
+                    <button data-status="COMPLETED" class="status-card p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-emerald-500/40 text-center transition cursor-pointer">
+                        <div class="flex items-center justify-center gap-1 text-[10px] text-emerald-300 font-medium">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>已完成
+                        </div>
+                        <div id="count-completed" class="text-sm font-mono font-extrabold text-emerald-400 mt-0.5">0</div>
+                    </button>
+                    <button data-status="LOGGED" class="status-card p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-blue-500/40 text-center transition cursor-pointer">
+                        <div class="flex items-center justify-center gap-1 text-[10px] text-blue-300 font-medium">
+                            <span class="w-2 h-2 rounded-full bg-blue-400"></span>已登錄
+                        </div>
+                        <div id="count-logged" class="text-sm font-mono font-extrabold text-blue-400 mt-0.5">0</div>
+                    </button>
+                </div>
+
+                <!-- 4. 搜尋框與行政區下拉篩選 -->
+                <div class="grid grid-cols-5 gap-1.5 mt-2">
+                    <div class="col-span-3 relative">
+                        <input id="search-input" type="text" placeholder="搜尋店號或店名..."
+                               class="w-full pl-7 pr-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500" />
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-slate-400 absolute left-2 top-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                    <select id="district-select" class="col-span-2 px-2 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-500 cursor-pointer">
+                        <option value="ALL">全部行政區 (83)</option>
+                    </select>
+                </div>
+
+                <!-- 5. 品牌快速篩選膠囊列 -->
+                <div id="brand-filter-bar" class="flex items-center gap-1.5 mt-2 overflow-x-auto pb-0.5">
+                    <!-- 由 JavaScript 動態生成 -->
+                </div>
+
+                <!-- 篩選重置提示列 -->
+                <div id="active-filter-bar" class="hidden mt-1.5 pt-1.5 border-t border-slate-800 flex items-center justify-between text-xs">
+                    <span id="active-filter-text" class="text-amber-300 font-medium truncate">篩選中</span>
+                    <button id="btn-clear-filter" class="text-slate-300 hover:text-white underline text-[11px] shrink-0 ml-2 cursor-pointer">顯示全部 (83)</button>
+                </div>
+            </div>
+
+            <!-- 6. 門店進度卡片清單容器 -->
+            <div id="store-list" class="flex-1 overflow-y-auto p-3 space-y-2.5 bg-slate-50">
+                <!-- 由 JavaScript 動態生成 -->
+            </div>
+
+            <!-- 底部圖資與雲端同步狀態提示 -->
+            <div class="px-3.5 py-2 bg-white border-t border-slate-200 text-[11px] text-slate-500 flex items-center justify-between shrink-0">
+                <span>底圖：NLSC 臺灣通用電子地圖</span>
+                <span id="save-indicator" class="text-sky-600 font-semibold flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse"></span>連線雲端資料庫...
+                </span>
+            </div>
+        </aside>
+
+        <!-- 右側（手機版：滿版地圖分頁）：互動地圖容器 -->
+        <main id="map-panel" class="map-wrapper">
+            <div id="map"></div>
+
+            <!-- 右上角浮動按鈕：總覽全部門店 -->
+            <button id="btn-fit-bounds" class="absolute top-3 right-3 z-[1000] bg-slate-900/95 hover:bg-slate-800 text-white px-3.5 py-2 rounded-xl shadow-lg border border-slate-700 text-xs font-bold flex items-center gap-1.5 backdrop-blur-sm transition active:scale-95 cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                </svg>
+                <span>總覽篩選門店</span>
+            </button>
+
+            <!-- 左下角四色燈號圖例懸浮卡 -->
+            <div class="hidden sm:flex absolute bottom-3 left-3 z-[1000] bg-white/95 backdrop-blur-sm px-3.5 py-2 rounded-xl shadow-md border border-slate-200 text-[11px] text-slate-700 items-center gap-3.5">
+                <span class="font-bold text-slate-800">燈號圖例：</span>
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-[#64748B]"></span>未排程</span>
+                <span class="flex items-center gap-1 font-bold text-amber-700"><span class="w-2.5 h-2.5 rounded-full bg-[#F59E0B]"></span>今日排程</span>
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-[#10B981]"></span>已完成</span>
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-[#2563EB]"></span>已線上登錄</span>
+            </div>
+        </main>
+    </div>
+
+    <!-- 手機版專屬底部雙分頁切換列（電腦版自動隱藏，不影響電腦版版面） -->
+    <nav id="mobile-bottom-nav" class="md:hidden fixed bottom-0 left-0 right-0 h-[56px] bg-slate-900 border-t border-slate-700 z-[1500] grid grid-cols-2 shadow-2xl">
+        <button id="tab-mobile-map" onclick="switchMobileTab('MAP')" class="flex items-center justify-center gap-2 text-xs font-extrabold text-white bg-emerald-600 transition cursor-pointer">
+            <span class="text-base">🗺️</span>
+            <span>戰情地圖</span>
+        </button>
+        <button id="tab-mobile-list" onclick="switchMobileTab('LIST')" class="flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition cursor-pointer">
+            <span class="text-base">📋</span>
+            <span>統計與門店清單</span>
+        </button>
+    </nav>
+
+    <!-- 管理員密碼驗證登入視窗 (Modal) -->
+    <div id="admin-modal" class="hidden fixed inset-0 z-[2000] bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xs overflow-hidden">
+            <div class="px-4 py-3 bg-slate-900 text-white flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="text-base">🔐</span>
+                    <h2 class="text-sm font-extrabold">管理員編輯權限解鎖</h2>
+                </div>
+                <button id="btn-close-admin-modal" class="text-slate-400 hover:text-white text-sm cursor-pointer">✕</button>
+            </div>
+            <div class="p-4 space-y-3">
+                <p class="text-xs text-slate-600 leading-relaxed">
+                    工程師預設為<b class="text-slate-800">唯讀檢視模式</b>。輸入管理員密碼並經雲端驗證通過後，即可解鎖排程設定、完工切換與雲端同步功能。
+                </p>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-700 mb-1">管理員密碼</label>
+                    <input id="admin-pwd-input" type="password" placeholder="請輸入管理員密碼"
+                           class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-amber-500" />
+                </div>
+                <p id="admin-modal-error" class="hidden text-[11px] font-bold text-rose-600"></p>
+                <div class="flex items-center justify-end gap-2 pt-1">
+                    <button id="btn-cancel-admin" class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer">
+                        取消
+                    </button>
+                    <button id="btn-submit-admin" class="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-sm transition cursor-pointer">
+                        驗證並解鎖
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 變更管理員密碼視窗 (Modal) -->
+    <div id="change-pwd-modal" class="hidden fixed inset-0 z-[2000] bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xs overflow-hidden">
+            <div class="px-4 py-3 bg-slate-900 text-white flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="text-base">🔑</span>
+                    <h2 class="text-sm font-extrabold">變更雲端管理員密碼</h2>
+                </div>
+                <button id="btn-close-changepwd-modal" class="text-slate-400 hover:text-white text-sm cursor-pointer">✕</button>
+            </div>
+            <div class="p-4 space-y-3">
+                <p class="text-xs text-slate-600 leading-relaxed">
+                    更新後將立即寫入 Google 試算表雲端設定，所有電腦與手機裝置下次解鎖時均須使用新密碼。
+                </p>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-700 mb-1">目前舊密碼</label>
+                    <input id="old-pwd-input" type="password" placeholder="請輸入目前使用的管理密碼"
+                           class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-amber-500" />
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-700 mb-1">設定新密碼（至少 4 碼）</label>
+                    <input id="new-pwd-input" type="password" placeholder="請輸入新管理密碼"
+                           class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-amber-500" />
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-700 mb-1">再次確認新密碼</label>
+                    <input id="confirm-pwd-input" type="password" placeholder="請再次輸入新密碼"
+                           class="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-amber-500" />
+                </div>
+                <p id="changepwd-modal-error" class="hidden text-[11px] font-bold text-rose-600"></p>
+                <div class="flex items-center justify-end gap-2 pt-1">
+                    <button id="btn-cancel-changepwd" class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer">
+                        取消
+                    </button>
+                    <button id="btn-submit-changepwd" class="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition cursor-pointer">
+                        確認更新密碼
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 自訂彈出式月曆視窗（取代兩處原生 input[type=date]，支援左右切換月份與底部「清除／今天」） -->
+    <div id="custom-calendar-popover" class="hidden fixed z-[2500] w-[264px] bg-white rounded-2xl shadow-2xl border border-slate-200 p-3 select-none" onclick="event.stopPropagation()">
+        <!-- 頂部：左箭頭 | 年月置中 | 右箭頭 -->
+        <div class="flex items-center justify-between mb-2.5 pb-2 border-b border-slate-100">
+            <button type="button" id="cal-prev-month" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-extrabold flex items-center justify-center transition cursor-pointer" title="上一個月">
+                ◀
+            </button>
+            <div id="cal-month-title" class="text-sm font-extrabold text-slate-900 tracking-wide text-center">
+                2026年 11月
+            </div>
+            <button type="button" id="cal-next-month" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-extrabold flex items-center justify-center transition cursor-pointer" title="下一個月">
+                ▶
+            </button>
+        </div>
+        <!-- 星期標頭 -->
+        <div class="grid grid-cols-7 text-center text-[11px] font-bold text-slate-400 mb-1">
+            <span class="text-rose-500">日</span>
+            <span>一</span>
+            <span>二</span>
+            <span>三</span>
+            <span>四</span>
+            <span>五</span>
+            <span class="text-emerald-600">六</span>
+        </div>
+        <!-- 日期格子 -->
+        <div id="cal-days-grid" class="grid grid-cols-7 gap-1 text-center text-xs">
+            <!-- 由 JS 動態渲染 -->
+        </div>
+        <!-- 底部快捷列：清除 / 今天 -->
+        <div class="flex items-center justify-between mt-2.5 pt-2 border-t border-slate-100 text-xs">
+            <button type="button" id="cal-btn-clear" class="px-2.5 py-1 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 font-bold transition cursor-pointer">
+                清除
+            </button>
+            <button type="button" id="cal-btn-today" class="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-extrabold shadow-xs transition cursor-pointer">
+                今天
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. 取得使用者本地實際今日日期 (YYYY-MM-DD) 與雲端 API 設定
+        // ==========================================
+        function getLocalTodayString() {
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
+        function sanitizeDateString(rawDate) {
+            if (!rawDate) return '';
+            const str = String(rawDate).replace(/^'/, '').trim();
+            if (!str || str === '未排程') return '';
+            if (str.includes('T')) {
+                const parsed = new Date(str);
+                if (!isNaN(parsed.getTime())) {
+                    const yyyy = parsed.getFullYear();
+                    const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+                    const dd = String(parsed.getDate()).padStart(2, '0');
+                    return `${yyyy}-${mm}-${dd}`;
+                }
+            }
+            const match = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+            if (match) {
+                return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+            }
+            return '';
+        }
+
+        const TODAY_STR = getLocalTodayString();
+        const CLOUD_API_URL = 'https://script.google.com/macros/s/AKfycbzxfyeptRFJ9eCXhRmmJl1OhuGbFCp4JXxkBX1nZRg3_OKBWkeGMdpfpRuyjEP-UNdN/exec';
+
+        const STORAGE_KEY = 'thai_town_inspection_v2_2_83stores';
+        const ADMIN_PWD_SESSION_KEY = 'thai_town_admin_pwd_v2_2';
+        const PREV_STORAGE_KEYS = [
+            'thai_town_inspection_v2_1_83stores',
+            'thai_town_inspection_v2_0_83stores',
+            'thai_town_inspection_v1_9_83stores',
+            'thai_town_inspection_v1_8_83stores',
+            'thai_town_inspection_v1_7_83stores',
+            'thai_town_inspection_v1_6_83stores',
+            'thai_town_inspection_v1_5_83stores'
+        ];
+        const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
+
+        let adminPassword = sessionStorage.getItem(ADMIN_PWD_SESSION_KEY) || '';
+        let isAdminMode = Boolean(adminPassword);
+
+        // ==========================================
+        // 2. 四色燈號視覺定義
+        // ==========================================
+        const STATUS_META = {
+            UNSCHEDULED: {
+                key: 'UNSCHEDULED',
+                label: '未排程',
+                color: '#64748B',
+                badgeBg: 'bg-slate-100 text-slate-700 border-slate-300',
+                dotClass: 'bg-slate-500'
+            },
+            TODAY: {
+                key: 'TODAY',
+                label: '今日排程',
+                color: '#F59E0B',
+                badgeBg: 'bg-amber-100 text-amber-800 border-amber-300',
+                dotClass: 'bg-amber-500 animate-ping'
+            },
+            COMPLETED: {
+                key: 'COMPLETED',
+                label: '已完成',
+                color: '#10B981',
+                badgeBg: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+                dotClass: 'bg-emerald-500'
+            },
+            LOGGED: {
+                key: 'LOGGED',
+                label: '已登錄',
+                color: '#2563EB',
+                badgeBg: 'bg-blue-100 text-blue-800 border-blue-300',
+                dotClass: 'bg-blue-600'
+            }
+        };
+
+        // ==========================================
+        // 手機版分頁切換控制（不影響桌面版架構）
+        // ==========================================
+        window.switchMobileTab = function(tabName) {
+            const mapPanel = document.getElementById('map-panel');
+            const sidebarPanel = document.getElementById('sidebar-panel');
+            const btnMap = document.getElementById('tab-mobile-map');
+            const btnList = document.getElementById('tab-mobile-list');
+            if (!mapPanel || !sidebarPanel || !btnMap || !btnList) return;
+
+            if (tabName === 'MAP') {
+                mapPanel.classList.remove('mobile-view-hidden');
+                sidebarPanel.classList.add('mobile-view-hidden');
+                btnMap.className = 'flex items-center justify-center gap-2 text-xs font-extrabold text-white bg-emerald-600 transition cursor-pointer';
+                btnList.className = 'flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition cursor-pointer';
+                if (map) {
+                    setTimeout(() => map.invalidateSize(), 60);
+                }
+            } else {
+                sidebarPanel.classList.remove('mobile-view-hidden');
+                mapPanel.classList.add('mobile-view-hidden');
+                btnList.className = 'flex items-center justify-center gap-2 text-xs font-extrabold text-white bg-emerald-600 transition cursor-pointer';
+                btnMap.className = 'flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition cursor-pointer';
+            }
+        };
+
+        // ==========================================
+        // 3. 北區完整 83 間門店清冊
+        // ==========================================
+        const DEFAULT_STORES = [
+            // --- 台北市 · 士林區 (4間) ---
+            { id: '032', name: '1010湘天母店', brand: '1010湘', city: '北市', district: '士林區', mall: '新光三越', lat: 25.11160, lng: 121.53140, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '臺北市士林區天母東路68號A館7樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–22:00'] },
+            { id: '093', name: '大心天母三越店', brand: '大心', city: '北市', district: '士林區', mall: '新光三越', lat: 25.11185, lng: 121.53185, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '臺北市士林區忠誠路二段200號B館3樓', hours: ['11:00–14:30, 16:00–21:30', '11:00–14:30, 17:00–21:30', '11:00–14:30, 17:00–21:30', '11:00–14:30, 17:00–21:30', '11:30–14:30, 17:00–21:30', '11:00–14:30, 17:00–22:00', '11:00–14:30, 17:00–22:00'] },
+            { id: '017', name: '瓦城天母三越店', brand: '瓦城', city: '北市', district: '士林區', mall: '新光三越', lat: 25.11135, lng: 121.53105, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '臺北市士林區天母東路68號7樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–22:00'] },
+            { id: '028', name: '非常泰天母SOGO店', brand: '非常泰', city: '北市', district: '士林區', mall: '遠東SOGO', lat: 25.10550, lng: 121.52500, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '臺北市士林區中山北路六段77號8樓', hours: ['11:30–22:00', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–22:00'] },
+
+            // --- 台北市 · 大安區 (2間) ---
+            { id: '015', name: '瓦城安和店', brand: '瓦城', city: '北市', district: '大安區', mall: '獨立店', lat: 25.03380, lng: 121.55260, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '臺北市大安區安和路二段133號', hours: ['11:30–15:00, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–15:00, 17:30–21:30'] },
+            { id: 'D004', name: '樂子瑞安創始店', brand: '樂子', city: '北市', district: '大安區', mall: '獨立店', lat: 25.02890, lng: 121.54250, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '臺北市大安區瑞安街145號', hours: ['08:00–21:00', '09:00–21:00', '09:00–21:00', '09:00–21:00', '09:00–21:00', '09:00–21:00', '08:00–21:00'] },
+
+            // --- 台北市 · 中山區 (6間) ---
+            { id: '175', name: 'YABI南西誠品店', brand: 'YABI', city: '北市', district: '中山區', mall: '誠品', lat: 25.05280, lng: 121.52040, scheduledDate: '2026-12-01', manualStatus: 'UNSCHEDULED', address: '臺北市中山區南京西路14號2樓', hours: ['11:00–21:30', '11:00–21:30', '11:00–21:30', '11:00–21:30', '11:00–21:30', '11:00–21:30', '11:00–22:00'] },
+            { id: '096', name: '大心南西店', brand: '大心', city: '北市', district: '中山區', mall: '誠品', lat: 25.05250, lng: 121.52080, scheduledDate: '2026-12-01', manualStatus: 'UNSCHEDULED', address: '臺北市中山區南京西路14號B1', hours: ['11:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:30', '11:00–22:30'] },
+            { id: '027', name: '瓦城南西店', brand: '瓦城', city: '北市', district: '中山區', mall: '新光三越', lat: 25.05270, lng: 121.52180, scheduledDate: '2026-12-01', manualStatus: 'UNSCHEDULED', address: '臺北市中山區南京西路12號8樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+            { id: '016', name: '瓦城美麗華店', brand: '瓦城', city: '北市', district: '中山區', mall: '美麗華百樂園', lat: 25.08330, lng: 121.55720, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '臺北市中山區敬業三路20號2樓', hours: ['11:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+            { id: '148', name: '時時香美麗華店', brand: '時時香', city: '北市', district: '中山區', mall: '美麗華百樂園', lat: 25.08365, lng: 121.55765, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '臺北市中山區敬業三路20號5樓', hours: ['11:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+            { id: '177', name: '無限廚房中山店', brand: '無限廚房', city: '北市', district: '中山區', mall: '獨立店', lat: 25.05750, lng: 121.52550, scheduledDate: '2026-11-30', manualStatus: 'UNSCHEDULED', address: '臺北市中山區吉林路20號1樓', hours: ['11:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:00'] },
+
+            // --- 台北市 · 中正區 (4間) ---
+            { id: '085', name: '大心微風店', brand: '大心', city: '北市', district: '中正區', mall: '微風廣場', lat: 25.04810, lng: 121.51730, scheduledDate: '2026-11-30', manualStatus: 'UNSCHEDULED', address: '臺北市中正區北平西路3號2樓', hours: ['10:00–21:30', '10:00–21:30', '10:00–21:30', '10:00–21:30', '10:00–21:30', '10:00–21:30', '10:00–21:30'] },
+            { id: '067', name: '瓦城台北三越站前店', brand: '瓦城', city: '北市', district: '中正區', mall: '新光三越', lat: 25.04620, lng: 121.51520, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '臺北市中正區忠孝西路一段66號12樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+            { id: '128', name: '瓦城EXPRESS台北微風車站店', brand: '瓦城EXPRESS', city: '北市', district: '中正區', mall: '微風廣場', lat: 25.04780, lng: 121.51690, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '臺北市中正區北平西路3號2樓', hours: ['11:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+            { id: '194', name: '瓦城兩廳院店', brand: '瓦城', city: '北市', district: '中正區', mall: '獨立店', lat: 25.03650, lng: 121.51860, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '臺北市中正區愛國東路24號1樓', hours: ['11:30–14:30, 17:30–22:00', '11:30–14:30, 17:30–22:00', '11:30–14:30, 17:30–22:00', '11:30–14:30, 17:30–22:00', '11:30–14:30, 17:30–22:00', '11:30–14:30, 17:30–22:00', '11:30–14:30, 17:30–22:00'] },
+
+            // --- 台北市 · 內湖區 (3間) ---
+            { id: '048', name: '瓦城台北西湖店', brand: '瓦城', city: '北市', district: '內湖區', mall: '獨立店', lat: 25.08150, lng: 121.56750, scheduledDate: '2026-11-23', manualStatus: 'LOGGED', address: '臺北市內湖區內湖路一段246-1號', hours: ['11:30–15:00, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–15:00, 17:30–21:30'] },
+            { id: '160', name: '瓦城內湖潤泰店', brand: '瓦城', city: '北市', district: '內湖區', mall: '潤泰 CityLink', lat: 25.08310, lng: 121.59450, scheduledDate: '2026-11-23', manualStatus: 'COMPLETED', address: '臺北市內湖區成功路四段188號2樓', hours: ['11:00–22:00', '11:00–14:30, 17:00–21:30', '11:00–14:30, 17:00–21:30', '11:00–14:30, 17:00–21:30', '11:00–14:30, 17:00–21:30', '11:00–14:30, 17:00–21:30', '11:00–22:00'] },
+            { id: '174', name: '無限廚房內湖店', brand: '無限廚房', city: '北市', district: '內湖區', mall: '獨立店', lat: 25.07850, lng: 121.57500, scheduledDate: '2026-11-23', manualStatus: 'LOGGED', address: '臺北市內湖區洲子街106號', hours: ['10:30–20:30', '10:30–20:30', '10:30–20:30', '10:30–20:30', '10:30–20:30', '10:30–20:30', '10:30–20:30'] },
+
+            // --- 台北市 · 北投區 (1間) ---
+            { id: '004', name: '瓦城天母店', brand: '瓦城', city: '北市', district: '北投區', mall: '獨立店', lat: 25.11850, lng: 121.52580, scheduledDate: '2026-11-19', manualStatus: 'LOGGED', address: '臺北市士林區天母西路111號', hours: ['11:30–15:00, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–15:00, 17:30–21:30'] },
+
+            // --- 台北市 · 松山區 (4間) ---
+            { id: '020', name: '1010湘復北店', brand: '1010湘', city: '北市', district: '松山區', mall: '獨立店', lat: 25.05780, lng: 121.54420, scheduledDate: '2026-11-16', manualStatus: 'LOGGED', address: '臺北市松山區復興北路301號', hours: ['11:30–15:00, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–15:00, 17:30–21:30'] },
+            { id: '086', name: '大心松山機場店', brand: '大心', city: '北市', district: '松山區', mall: '松山機場', lat: 25.06370, lng: 121.55180, scheduledDate: '2026-11-16', manualStatus: 'COMPLETED', address: '臺北市松山區敦化北路340之9號2樓', hours: ['11:00–19:30', '11:00–19:30', '11:00–19:30', '11:00–19:00', '11:00–19:30', '11:00–19:30', '11:00–19:30'] },
+            { id: '100', name: '大心南京微風店', brand: '大心', city: '北市', district: '松山區', mall: '微風廣場', lat: 25.05180, lng: 121.54860, scheduledDate: '2026-11-16', manualStatus: 'COMPLETED', address: '臺北市松山區南京東路三段337號B2', hours: ['11:00–21:30', '11:00–21:30', '11:00–21:30', '11:00–21:30', '11:00–22:00', '11:00–22:00', '11:00–22:00'] },
+            { id: '224', name: '瓦城復興店', brand: '瓦城', city: '北市', district: '松山區', mall: '獨立店', lat: 25.05450, lng: 121.54390, scheduledDate: '2026-11-16', manualStatus: 'COMPLETED', address: '臺北市松山區復興北路319號', hours: ['11:30–14:30, 17:30–00:00', '11:30–14:30, 17:30–22:00', '11:30–14:30, 17:30–22:00', '11:30–14:30, 17:30–22:00', '11:30–14:30, 17:30–22:00', '11:30–14:30, 17:30–00:00', '11:30–14:30, 17:30–00:00'] },
+
+            // --- 台北市 · 信義區 (12間) ---
+            { id: '165', name: '1010湘湘食堂信義遠百店', brand: '1010湘食堂', city: '北市', district: '信義區', mall: '遠東百貨', lat: 25.03690, lng: 121.56780, scheduledDate: '2026-11-17', manualStatus: 'LOGGED', address: '臺北市信義區松仁路58號4樓', hours: ['11:00–21:30', '11:00–15:00, 16:30–21:30', '11:00–15:00, 16:30–21:30', '11:00–15:00, 16:30–21:30', '11:00–15:00, 16:30–21:30', '11:00–15:00, 16:30–22:00', '11:00–22:00'] },
+            { id: '217', name: '1010湘 DREAM PLAZA店', brand: '1010湘', city: '北市', district: '信義區', mall: '統一時代百貨', lat: 25.04050, lng: 121.56510, scheduledDate: '2026-11-04', manualStatus: 'LOGGED', address: '臺北市信義區松高路11號4樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+            { id: '204', name: 'SHANN SHANN 台北三越信義店', brand: 'SHANN SHANN', city: '北市', district: '信義區', mall: '新光三越', lat: 25.03840, lng: 121.56720, scheduledDate: '2026-11-18', manualStatus: 'LOGGED', address: '臺北市信義區松壽路9號6樓', hours: ['11:00–21:00', '11:00–14:30, 17:00–21:00', '11:00–14:30, 17:00–21:00', '11:00–14:30, 17:00–21:00', '11:00–14:30, 17:00–21:00', '11:00–14:30, 17:00–21:00', '11:00–21:00'] },
+            { id: '216', name: 'YABI DREAM PLAZA店', brand: 'YABI', city: '北市', district: '信義區', mall: '統一時代百貨', lat: 25.04020, lng: 121.56555, scheduledDate: '2026-11-04', manualStatus: 'LOGGED', address: '臺北市信義區松高路11號4樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+            { id: '072', name: '大心統一時代店', brand: '大心', city: '北市', district: '信義區', mall: '統一時代百貨', lat: 25.04075, lng: 121.56575, scheduledDate: '2026-11-04', manualStatus: 'LOGGED', address: '臺北市信義區忠孝東路五段8號B2', hours: ['07:30–10:30, 11:00–21:00', '07:30–10:30, 11:00–21:00', '07:30–10:30, 11:00–21:00', '07:30–10:30, 11:00–21:00', '07:30–10:30, 11:00–21:00', '07:30–10:30, 11:00–21:00', '07:30–10:30, 11:00–21:00'] },
+            { id: '078', name: '大心威秀店', brand: '大心', city: '北市', district: '信義區', mall: '威秀影城', lat: 25.03550, lng: 121.56700, scheduledDate: '2026-11-17', manualStatus: 'LOGGED', address: '臺北市信義區松壽路20號', hours: ['11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00'] },
+            { id: '014', name: '瓦城信義店', brand: '瓦城', city: '北市', district: '信義區', mall: '新光三越', lat: 25.03610, lng: 121.56650, scheduledDate: '2026-11-18', manualStatus: 'LOGGED', address: '臺北市信義區松壽路9號7樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+            { id: '058', name: '瓦城松山車站店', brand: '瓦城', city: '北市', district: '信義區', mall: '潤泰 CityLink', lat: 25.04930, lng: 121.57820, scheduledDate: '2026-11-17', manualStatus: 'LOGGED', address: '臺北市信義區松山路11號2樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+            { id: '139', name: '瓦城微風南山店', brand: '瓦城', city: '北市', district: '信義區', mall: '微風廣場', lat: 25.03420, lng: 121.56610, scheduledDate: '2026-11-18', manualStatus: 'COMPLETED', address: '臺北市信義區松智路17號6樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+            { id: '152', name: '瓦城信義微風店', brand: '瓦城', city: '北市', district: '信義區', mall: '微風廣場', lat: 25.03940, lng: 121.56680, scheduledDate: '2026-11-03', manualStatus: 'LOGGED', address: '臺北市信義區忠孝東路五段68號B1', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+            { id: '140', name: '時時香微風南山店', brand: '時時香', city: '北市', district: '信義區', mall: '微風廣場', lat: 25.03395, lng: 121.56650, scheduledDate: '2026-11-18', manualStatus: 'COMPLETED', address: '臺北市信義區松智路17號6樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+            { id: '178', name: '時時香松山車站店', brand: '時時香', city: '北市', district: '信義區', mall: '潤泰 CityLink', lat: 25.04905, lng: 121.57865, scheduledDate: '2026-11-17', manualStatus: 'LOGGED', address: '臺北市信義區松山路11號2樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+
+            // --- 台北市 · 南港區 (5間) ---
+            { id: '080', name: '1010湘南港店', brand: '1010湘', city: '北市', district: '南港區', mall: '中信金融園區', lat: 25.05935, lng: 121.61525, scheduledDate: '2026-11-20', manualStatus: 'LOGGED', address: '臺北市南港區經貿二路186-1號C棟', hours: ['11:00–15:00, 17:00–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:00–15:00, 17:00–21:30'] },
+            { id: '083', name: '瓦城南港車站店', brand: '瓦城', city: '北市', district: '南港區', mall: '潤泰 CityLink', lat: 25.05315, lng: 121.60715, scheduledDate: '2026-11-20', manualStatus: 'LOGGED', address: '臺北市南港區忠孝東路七段369號C1棟8樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–21:30'] },
+            { id: '081', name: '非常泰南港中信店', brand: '非常泰', city: '北市', district: '南港區', mall: '中信金融園區', lat: 25.05885, lng: 121.61475, scheduledDate: '2026-11-20', manualStatus: 'LOGGED', address: '臺北市南港區經貿二路186-1號1樓C棟', hours: ['11:00–15:00, 17:00–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:00–15:00, 17:00–21:30'] },
+            { id: '167', name: '時時香南港車站店', brand: '時時香', city: '北市', district: '南港區', mall: '潤泰 CityLink', lat: 25.05285, lng: 121.60755, scheduledDate: '2026-11-20', manualStatus: 'LOGGED', address: '臺北市南港區忠孝東路七段369號C棟9樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–21:30'] },
+            { id: 'D002', name: '樂子南港中信店', brand: '樂子', city: '北市', district: '南港區', mall: '中信金融園區', lat: 25.05910, lng: 121.61585, scheduledDate: '2026-12-01', manualStatus: 'UNSCHEDULED', address: '臺北市南港區經貿二路166號A棟2樓', hours: ['10:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00', '10:00–21:00'] },
+
+            // --- 宜蘭縣 · 宜蘭市 (2間) ---
+            { id: '071', name: '瓦城宜蘭新月店', brand: '瓦城', city: '宜蘭', district: '宜蘭市', mall: '新月廣場', lat: 24.75440, lng: 121.74980, scheduledDate: '2026-11-19', manualStatus: 'LOGGED', address: '宜蘭縣宜蘭市民權路二段38巷6號4樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+            { id: '191', name: '時時香宜蘭新月店', brand: '時時香', city: '宜蘭', district: '宜蘭市', mall: '新月廣場', lat: 24.75470, lng: 121.75030, scheduledDate: '2026-11-17', manualStatus: 'LOGGED', address: '宜蘭縣宜蘭市民權路二段38巷6號4樓', hours: ['11:00–22:00', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–22:00'] },
+
+            // --- 桃園市 · 中壢區 (8間) ---
+            { id: '211', name: 'BOBO中壢大江店', brand: 'BOBO', city: '桃園', district: '中壢區', mall: '大江購物中心', lat: 25.00160, lng: 121.22880, scheduledDate: '2026-11-26', manualStatus: 'COMPLETED', address: '桃園市中壢區中園路二段509號GBF', hours: ['11:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:30', '11:00–22:30'] },
+            { id: '130', name: '大心內壢康達盛通店', brand: '大心', city: '桃園', district: '中壢區', mall: '家樂福', lat: 24.97230, lng: 121.25350, scheduledDate: '2026-11-26', manualStatus: 'COMPLETED', address: '桃園市中壢區中華路一段450號1樓', hours: ['11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00'] },
+            { id: '212', name: '大心MARKET中壢大江店', brand: '大心MARKET', city: '桃園', district: '中壢區', mall: '大江購物中心', lat: 25.00195, lng: 121.22925, scheduledDate: '2026-11-26', manualStatus: 'COMPLETED', address: '桃園市中壢區中園路二段501號GBF', hours: ['11:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:30', '11:00–22:30'] },
+            { id: '023', name: '瓦城中壢SOGO店', brand: '瓦城', city: '桃園', district: '中壢區', mall: '遠東SOGO', lat: 24.96280, lng: 121.22480, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '桃園市中壢區元化路357號8樓', hours: ['11:00–21:00', '11:00–14:30, 17:00–21:00', '11:00–14:30, 17:00–21:00', '11:00–14:30, 17:00–21:00', '11:00–14:30, 17:00–21:00', '11:00–14:30, 17:00–21:00', '11:00–21:00'] },
+            { id: '025', name: '瓦城中壢大江店', brand: '瓦城', city: '桃園', district: '中壢區', mall: '大江購物中心', lat: 25.00125, lng: 121.22845, scheduledDate: '2026-11-26', manualStatus: 'COMPLETED', address: '桃園市中壢區中園路二段501號4樓', hours: ['11:00–22:00', '11:00–15:00, 17:30–22:00', '11:00–15:00, 17:30–22:00', '11:00–15:00, 17:30–22:00', '11:00–15:00, 17:30–22:00', '11:00–15:00, 17:30–22:30', '11:00–22:00'] },
+            { id: '162', name: '瓦城桃園新光影城店', brand: '瓦城', city: '桃園', district: '中壢區', mall: '新光影城', lat: 25.01650, lng: 121.21320, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '桃園市中壢區春德路107號2樓', hours: ['11:00–22:00', '11:00–15:00, 17:00–21:00', '11:00–15:00, 17:00–21:00', '11:00–15:00, 17:00–21:00', '11:00–15:00, 17:00–21:00', '11:00–15:00, 17:00–21:00', '11:00–22:00'] },
+            { id: '171', name: '時時香中壢大江店', brand: '時時香', city: '桃園', district: '中壢區', mall: '大江購物中心', lat: 25.00145, lng: 121.22950, scheduledDate: '2026-11-26', manualStatus: 'COMPLETED', address: '桃園市中壢區中園路二段501號4樓', hours: ['11:00–22:00', '11:00–15:00, 17:30–22:00', '11:00–15:00, 17:30–22:00', '11:00–15:00, 17:30–22:00', '11:00–15:00, 17:30–22:00', '11:00–15:00, 17:30–22:30', '11:00–22:30'] },
+            { id: '192', name: '時時香華泰名品城店', brand: '時時香', city: '桃園', district: '中壢區', mall: '華泰名品城', lat: 25.01480, lng: 121.21410, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '桃園市中壢區春德路189號一期3樓', hours: ['11:00–22:00', '11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–22:00'] },
+
+            // --- 桃園市 · 桃園區 (3間) ---
+            { id: '029', name: '瓦城桃園三越店', brand: '瓦城', city: '桃園', district: '桃園區', mall: '新光三越', lat: 25.00230, lng: 121.31450, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '桃園市桃園區中正路19號10樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+            { id: '084', name: '瓦城桃園中正店', brand: '瓦城', city: '桃園', district: '桃園區', mall: '獨立店', lat: 25.01680, lng: 121.30050, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '桃園市桃園區南平路370號2樓', hours: ['11:30–15:00, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–15:00, 17:30–21:30'] },
+            { id: '203', name: '時時香桃園三越站前店', brand: '時時香', city: '桃園', district: '桃園區', mall: '新光三越', lat: 24.99010, lng: 121.31320, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '桃園市桃園區中正路19號10樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+
+            // --- 桃園市 · 龜山區 (2間) ---
+            { id: '151', name: '瓦城桃園環球A8店', brand: '瓦城', city: '桃園', district: '龜山區', mall: '環球購物中心', lat: 25.06040, lng: 121.36980, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '桃園市龜山區復興一路8號2樓', hours: ['11:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+            { id: 'D007', name: '樂子桃園環球A8店', brand: '樂子', city: '桃園', district: '龜山區', mall: '環球購物中心', lat: 25.06075, lng: 121.37025, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '桃園市龜山區復興一路8號1樓', hours: ['10:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:00', '10:00–22:00'] },
+
+            // --- 桃園市 · 蘆竹區 (1間) ---
+            { id: '156', name: '瓦城桃園台茂店', brand: '瓦城', city: '桃園', district: '蘆竹區', mall: '台茂購物中心', lat: 25.05310, lng: 121.28760, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '桃園市蘆竹區南崁路一段112號6樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+
+            // --- 新北市 · 三重區 (2間) ---
+            { id: '126', name: '瓦城三重康達盛通店', brand: '瓦城EXPRESS', city: '新北', district: '三重區', mall: '家樂福', lat: 25.05480, lng: 121.47180, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '新北市三重區重新路五段654號', hours: ['11:00–21:30', '11:00–14:30, 17:00–21:30', '11:00–14:30, 17:00–21:30', '11:00–14:30, 17:00–21:30', '11:00–14:30, 17:00–21:30', '11:00–14:30, 17:00–21:30', '11:00–21:30'] },
+            { id: '219', name: '瓦城三重潤泰店', brand: '瓦城', city: '新北', district: '三重區', mall: '潤泰 CityLink', lat: 25.06250, lng: 121.48450, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '新北市三重區捷運路62號2樓', hours: ['11:00–21:00', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–22:00', '11:00–21:00'] },
+
+            // --- 新北市 · 中和區 (7間) ---
+            { id: '131', name: '1010湘中和建一店', brand: '1010湘', city: '新北', district: '中和區', mall: '獨立店', lat: 24.99980, lng: 121.48780, scheduledDate: '2026-11-25', manualStatus: 'COMPLETED', address: '新北市中和區建一路162號', hours: ['11:30–14:30, 17:30–21:00', '11:30–14:30, 17:30–21:00', '11:30–14:30, 17:30–21:00', '11:30–14:30, 17:30–21:00', '11:30–14:30, 17:30–21:00', '11:30–14:30, 17:30–21:00', '11:30–14:30, 17:30–21:00'] },
+            { id: '122', name: '大心EXPRESS中和建一店', brand: '大心EXPRESS', city: '新北', district: '中和區', mall: '獨立店', lat: 24.99950, lng: 121.48820, scheduledDate: '2026-11-25', manualStatus: 'COMPLETED', address: '新北市中和區建一路172號', hours: ['11:30–15:00, 17:00–20:30', '11:30–15:00, 17:00–20:30', '11:30–15:00, 17:00–20:30', '11:30–15:00, 17:00–20:30', '11:30–15:00, 17:00–20:30', '11:30–15:00, 17:00–20:30', '11:30–15:00, 17:00–20:30'] },
+            { id: '163', name: '大心中和環球店', brand: '大心', city: '新北', district: '中和區', mall: '環球購物中心', lat: 25.00670, lng: 121.47430, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '新北市中和區中山路三段122號B2', hours: ['11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00'] },
+            { id: '018', name: '瓦城環球店', brand: '瓦城', city: '新北', district: '中和區', mall: '環球購物中心', lat: 25.00635, lng: 121.47395, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '新北市中和區中山路三段122號4樓', hours: ['11:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+            { id: '060', name: '瓦城中和建一店', brand: '瓦城', city: '新北', district: '中和區', mall: '獨立店', lat: 25.00010, lng: 121.48750, scheduledDate: '2026-11-25', manualStatus: 'COMPLETED', address: '新北市中和區建一路179號', hours: ['11:30–15:00, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–15:00, 17:30–21:30'] },
+            { id: '146', name: '時時香中和環球店', brand: '時時香', city: '新北', district: '中和區', mall: '環球購物中心', lat: 25.00655, lng: 121.47475, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '新北市中和區中山路三段122號4樓', hours: ['11:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+            { id: '176', name: '無限廚房中和店', brand: '無限廚房', city: '新北', district: '中和區', mall: '獨立店', lat: 24.99935, lng: 121.48735, scheduledDate: '2026-11-24', manualStatus: 'COMPLETED', address: '新北市中和區建一路178號1樓', hours: ['10:30–20:30', '10:30–20:30', '10:30–20:30', '10:30–20:30', '10:30–20:30', '10:30–20:30', '10:30–20:30'] },
+
+            // --- 新北市 · 永和區 (1間) ---
+            { id: '043', name: '瓦城永和店', brand: '瓦城', city: '新北', district: '永和區', mall: '獨立店', lat: 25.01250, lng: 121.51520, scheduledDate: '2026-11-25', manualStatus: 'COMPLETED', address: '新北市永和區永和路二段116號', hours: ['11:30–15:00, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–15:00, 17:30–21:30'] },
+
+            // --- 新北市 · 汐止區 (1間) ---
+            { id: '205', name: '雙品牌汐止店', brand: '瓦城聯合品牌', city: '新北', district: '汐止區', mall: '遠雄購物中心', lat: 25.06180, lng: 121.64850, scheduledDate: '2026-11-24', manualStatus: 'LOGGED', address: '新北市汐止區新台五路一段99號1樓', hours: ['11:00–21:00', '11:00–15:00, 17:00–21:00', '11:00–15:00, 17:00–21:00', '11:00–15:00, 17:00–21:00', '11:00–15:00, 17:00–21:00', '11:00–15:00, 17:00–21:30', '11:00–21:30'] },
+
+            // --- 新北市 · 板橋區 (3間) ---
+            { id: '103', name: '1010湘新板店', brand: '1010湘', city: '新北', district: '板橋區', mall: '誠品', lat: 25.01020, lng: 121.46080, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '新北市板橋區縣民大道二段66號2樓', hours: ['11:00–15:00, 17:00–22:00', '11:00–14:30, 17:00–22:00', '11:00–14:30, 17:00–22:00', '11:00–14:30, 17:00–22:00', '11:00–14:30, 17:00–22:00', '11:00–14:30, 17:00–22:00', '11:00–15:00, 17:00–22:00'] },
+            { id: '033', name: '瓦城板橋遠百店', brand: '瓦城', city: '新北', district: '板橋區', mall: '遠東百貨', lat: 25.01380, lng: 121.46650, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '新北市板橋區中山路一段152號13樓', hours: ['11:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+            { id: '045', name: '非常泰板橋大遠百店', brand: '非常泰', city: '新北', district: '板橋區', mall: '遠東百貨', lat: 25.01350, lng: 121.46695, scheduledDate: '2026-11-24', manualStatus: 'COMPLETED', address: '新北市板橋區新站路28號9樓', hours: ['11:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:00', '11:00–22:00'] },
+
+            // --- 新北市 · 林口區 (1間) ---
+            { id: '105', name: '瓦城林口三井店', brand: '瓦城', city: '新北', district: '林口區', mall: 'MITSUI OUTLET PARK', lat: 25.07060, lng: 121.36450, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '新北市林口區文化三路一段356號2樓', hours: ['11:00–22:00', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+
+            // --- 新北市 · 淡水區 (1間) ---
+            { id: '220', name: '瓦城雙品牌淡水店', brand: '瓦城聯合品牌', city: '新北', district: '淡水區', mall: '大都會廣場', lat: 25.16860, lng: 121.44420, scheduledDate: '2026-11-27', manualStatus: 'UNSCHEDULED', address: '新北市淡水區中山路8號9樓', hours: ['11:00–15:00, 16:00–21:30', '11:00–14:30, 17:00–21:30', '11:00–14:30, 17:00–21:30', '11:00–14:30, 17:00–21:30', '11:00–14:30, 17:00–21:30', '11:00–14:30, 17:00–21:30', '11:00–15:00, 16:00–21:30'] },
+
+            // --- 新北市 · 新店區 (6間) ---
+            { id: '059', name: '1010湘新店店', brand: '1010湘', city: '新北', district: '新店區', mall: '獨立店', lat: 24.97850, lng: 121.54320, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '新北市新店區建國路257號1樓', hours: ['11:30–15:00, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–15:00, 17:30–21:30'] },
+            { id: '129', name: '大心新店康達盛通店', brand: '大心', city: '新北', district: '新店區', mall: '家樂福', lat: 24.97650, lng: 121.54710, scheduledDate: '2026-11-23', manualStatus: 'COMPLETED', address: '新北市新店區中興路三段1號1樓', hours: ['11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00', '11:00–21:00'] },
+            { id: '055', name: '瓦城新店店', brand: '瓦城', city: '新北', district: '新店區', mall: '獨立店', lat: 24.97880, lng: 121.54280, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '新北市新店區建國路268號1-2樓', hours: ['11:30–15:00, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–14:30, 17:30–21:30', '11:30–15:00, 17:30–21:30'] },
+            { id: '195', name: '瓦城誠品新店店', brand: '瓦城', city: '新北', district: '新店區', mall: '誠品', lat: 24.97720, lng: 121.54630, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '新北市新店區中興路三段70號3樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+            { id: '222', name: '瓦城京站小碧潭店', brand: '瓦城', city: '新北', district: '新店區', mall: '京站時尚廣場', lat: 24.97220, lng: 121.52980, scheduledDate: '2026-11-25', manualStatus: 'COMPLETED', address: '新北市新店區中央路157號5樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–21:00'] },
+            { id: '196', name: '時時香誠品新店店', brand: '時時香', city: '新北', district: '新店區', mall: '誠品', lat: 24.97755, lng: 121.54675, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '新北市新店區中興路三段70號3樓', hours: ['11:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–21:30', '11:00–15:00, 17:00–22:00', '11:00–22:00'] },
+
+            // --- 新北市 · 新莊區 (2間) ---
+            { id: '202', name: 'BOBO新莊宏匯店', brand: 'BOBO', city: '新北', district: '新莊區', mall: '宏匯廣場', lat: 25.05980, lng: 121.44950, scheduledDate: '2026-11-24', manualStatus: 'LOGGED', address: '新北市新莊區新北大道四段3號6樓', hours: ['11:00–21:30', '11:00–21:30', '11:00–21:30', '11:00–21:30', '11:00–21:30', '11:00–22:00', '11:00–22:00'] },
+            { id: '099', name: '瓦城新莊佳瑪店', brand: '瓦城', city: '新北', district: '新莊區', mall: '獨立店', lat: 25.04850, lng: 121.45220, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '新北市新莊區幸福路750號2樓', hours: ['11:00–15:00, 17:00–22:00', '11:00–14:30, 17:00–22:00', '11:00–14:30, 17:00–22:00', '11:00–14:30, 17:00–22:00', '11:00–14:30, 17:00–22:00', '11:00–14:30, 17:00–22:00', '11:00–15:00, 17:00–22:00'] },
+
+            // --- 新北市 · 樹林區 (2間) ---
+            { id: '179', name: '瓦城樹林秀泰店', brand: '瓦城', city: '新北', district: '樹林區', mall: '秀泰生活', lat: 24.99420, lng: 121.42580, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '新北市樹林區樹新路40-6號7樓', hours: ['11:00–22:00', '11:00–15:00, 17:30–22:00', '11:00–15:00, 17:30–22:00', '11:00–15:00, 17:30–22:00', '11:00–15:00, 17:30–22:00', '11:00–15:00, 17:30–22:00', '11:00–22:00'] },
+            { id: '189', name: '時時香樹林秀泰店', brand: '時時香', city: '新北', district: '樹林區', mall: '秀泰生活', lat: 24.99455, lng: 121.42625, scheduledDate: '', manualStatus: 'UNSCHEDULED', address: '新北市樹林區樹新路40-6號7樓', hours: ['11:00–22:00', '11:00–15:00, 17:30–22:00', '11:00–15:00, 17:30–22:00', '11:00–15:00, 17:30–22:00', '11:00–15:00, 17:30–22:00', '11:00–15:00, 17:30–22:00', '11:00–22:00'] }
+        ];
+
+        // ==========================================
+        // 4. 狀態管理：本地快取 + Google 試算表雲端雙向同步 (POST JSON 防截斷通道)
+        // ==========================================
+        function loadLocalFallbackState() {
+            try {
+                let raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw && Array.isArray(PREV_STORAGE_KEYS)) {
+                    for (const prevKey of PREV_STORAGE_KEYS) {
+                        const prevRaw = localStorage.getItem(prevKey);
+                        if (prevRaw) {
+                            raw = prevRaw;
+                            localStorage.setItem(STORAGE_KEY, prevRaw);
+                            break;
+                        }
+                    }
+                }
+                if (!raw) return JSON.parse(JSON.stringify(DEFAULT_STORES));
+                const savedMap = JSON.parse(raw);
+                return DEFAULT_STORES.map(base => {
+                    if (savedMap[base.id]) {
+                        return {
+                            ...base,
+                            scheduledDate: savedMap[base.id].scheduledDate !== undefined ? sanitizeDateString(savedMap[base.id].scheduledDate) : base.scheduledDate,
+                            manualStatus: savedMap[base.id].manualStatus || base.manualStatus || 'UNSCHEDULED'
+                        };
+                    }
+                    return { ...base };
+                });
+            } catch (e) {
+                console.warn('讀取本地快取失敗，使用預設狀態:', e);
+                return JSON.parse(JSON.stringify(DEFAULT_STORES));
+            }
+        }
+
+        function saveLocalCache() {
+            try {
+                const stateMap = {};
+                storesData.forEach(s => {
+                    stateMap[s.id] = {
+                        scheduledDate: s.scheduledDate,
+                        manualStatus: s.manualStatus
+                    };
+                });
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(stateMap));
+            } catch (e) {
+                console.error('寫入本地快取失敗:', e);
+            }
+        }
+
+        let storesData = loadLocalFallbackState();
+
+        function setSyncIndicator(type, text) {
+            const indicator = document.getElementById('save-indicator');
+            if (!indicator) return;
+            if (type === 'syncing') {
+                indicator.className = 'text-sky-600 font-semibold flex items-center gap-1';
+                indicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-sky-500 animate-ping"></span>${text}`;
+            } else if (type === 'ok') {
+                indicator.className = 'text-emerald-600 font-semibold flex items-center gap-1';
+                indicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>${text}`;
+            } else {
+                indicator.className = 'text-amber-600 font-semibold flex items-center gap-1';
+                indicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>${text}`;
+            }
+        }
+
+        // 從 Google 試算表抓取全隊共用進度
+        async function fetchCloudProgress(silent = false) {
+            if (!CLOUD_API_URL) return;
+            setSyncIndicator('syncing', '同步雲端資料中...');
+            try {
+                const res = await fetch(`${CLOUD_API_URL}?action=read&_t=${Date.now()}`, {
+                    method: 'GET',
+                    redirect: 'follow'
+                });
+                const json = await res.json();
+                if (json && json.success && json.records) {
+                    const recordKeys = Object.keys(json.records);
+                    if (recordKeys.length > 0) {
+                        storesData = DEFAULT_STORES.map(base => {
+                            const rec = json.records[base.id];
+                            if (rec) {
+                                const cleanDate = sanitizeDateString(rec.scheduledDate);
+                                const validStatuses = ['UNSCHEDULED', 'COMPLETED', 'LOGGED'];
+                                const cleanStatus = validStatuses.includes(rec.manualStatus) ? rec.manualStatus : 'UNSCHEDULED';
+                                return {
+                                    ...base,
+                                    scheduledDate: cleanDate,
+                                    manualStatus: cleanStatus
+                                };
+                            }
+                            return { ...base };
+                        });
+                        saveLocalCache();
+                        renderAll();
+                        refreshOpenPopup();
+                        const timeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+                        setSyncIndicator('ok', `雲端已同步 (${timeStr})`);
+                        if (!silent) showToast('已從雲端試算表同步最新進度！', true);
+                    } else {
+                        saveLocalCache();
+                        renderAll();
+                        setSyncIndicator('ok', '雲端連線正常（使用基準清冊）');
+                        if (isAdminMode) {
+                            await syncAllStoresToCloud(true);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn('讀取雲端進度失敗，切換為本地快取模式:', err);
+                setSyncIndicator('warn', '離線快取模式');
+                if (!silent) showToast('雲端連線逾時，目前顯示本機快取進度。', false);
+            }
+        }
+
+        // 管理員單店即時寫入 Google 試算表（使用 POST text/plain JSON 封包，避免 URL 長度與轉址問題）
+        async function pushSingleStoreToCloud(store) {
+            if (!isAdminMode || !adminPassword) return;
+            setSyncIndicator('syncing', `寫入 ${store.id} 至雲端...`);
+            try {
+                const payload = {
+                    action: 'updateOne',
+                    pwd: adminPassword,
+                    id: store.id,
+                    name: store.name,
+                    date: store.scheduledDate || '',
+                    status: store.manualStatus || 'UNSCHEDULED'
+                };
+                const res = await fetch(CLOUD_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload),
+                    redirect: 'follow'
+                });
+                const json = await res.json();
+                if (json && json.success) {
+                    const timeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+                    setSyncIndicator('ok', `雲端已儲存 (${timeStr})`);
+                } else {
+                    setSyncIndicator('warn', '雲端寫入遭拒');
+                    showToast(`雲端同步失敗：${(json && json.error) || '密碼驗證未通過'}`, false);
+                }
+            } catch (err) {
+                console.error('單店寫入雲端錯誤:', err);
+                setSyncIndicator('warn', '雲端寫入失敗');
+                showToast('網路連線異常，變更已暫存本機，請稍後重試。', false);
+            }
+        }
+
+        // 管理員整批同步 83 店至 Google 試算表（使用 POST JSON 陣列，徹底突破 GET 長度上限）
+        async function syncAllStoresToCloud(isInit = false) {
+            if (!isAdminMode || !adminPassword) return false;
+            setSyncIndicator('syncing', '整批寫入雲端試算表...');
+            try {
+                const payload = {
+                    action: 'syncAll',
+                    pwd: adminPassword,
+                    stores: storesData.map(s => ({
+                        id: s.id,
+                        name: s.name,
+                        scheduledDate: s.scheduledDate || '',
+                        manualStatus: s.manualStatus || 'UNSCHEDULED'
+                    }))
+                };
+
+                const res = await fetch(CLOUD_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload),
+                    redirect: 'follow'
+                });
+                const json = await res.json();
+                if (json && json.success && Number(json.updatedCount) > 0) {
+                    const timeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+                    setSyncIndicator('ok', `全區 ${json.updatedCount} 店已寫入 (${timeStr})`);
+                    if (isInit) {
+                        showToast(`已自動將 ${json.updatedCount} 間門店最新進度寫入雲端試算表！`, true);
+                    }
+                    return true;
+                } else {
+                    setSyncIndicator('warn', '雲端整批同步失敗');
+                    showToast(`雲端寫入失敗：${(json && json.error) || '回傳筆數異常'}`, false);
+                    return false;
+                }
+            } catch (err) {
+                console.error('整批同步錯誤:', err);
+                setSyncIndicator('warn', '雲端整批同步錯誤');
+                showToast('無法連線至雲端試算表，請檢查網路狀態。', false);
+                return false;
+            }
+        }
+
+        // 核心燈號判定函式
+        function resolveStoreStatus(store) {
+            if (store.manualStatus === 'LOGGED') return STATUS_META.LOGGED;
+            if (store.manualStatus === 'COMPLETED') return STATUS_META.COMPLETED;
+            if (store.scheduledDate && store.scheduledDate === TODAY_STR) {
+                return STATUS_META.TODAY;
+            }
+            return STATUS_META.UNSCHEDULED;
+        }
+
+        // ==========================================
+        // 5. 全域地圖、篩選、管理員驗證與變更密碼介面控制
+        // ==========================================
+        let map = null;
+        let markersMap = {};
+        let selectedStoreId = null;
+        let isProgrammaticFlyTo = false;
+        let statusFilter = 'ALL';
+        let brandFilter = 'ALL';
+        let districtFilter = 'ALL';
+        let searchQuery = '';
+
+        function updateAdminUI() {
+            const btnAdmin = document.getElementById('btn-admin-toggle');
+            const btnChangePwd = document.getElementById('btn-change-pwd');
+            const btnImport = document.getElementById('btn-import-csv');
+            if (btnAdmin) {
+                if (isAdminMode) {
+                    btnAdmin.innerHTML = '🔓 管理員';
+                    btnAdmin.className = 'px-2 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-extrabold border border-amber-400 shadow-xs transition cursor-pointer';
+                    btnAdmin.title = '目前已解鎖管理員編輯權限（點擊可鎖定回唯讀模式）';
+                } else {
+                    btnAdmin.innerHTML = '🔒 唯讀';
+                    btnAdmin.className = 'px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-[11px] font-bold border border-amber-500/40 transition cursor-pointer';
+                    btnAdmin.title = '工程師唯讀檢視模式（點擊輸入密碼解鎖編輯）';
+                }
+            }
+            if (btnChangePwd) {
+                btnChangePwd.classList.toggle('hidden', !isAdminMode);
+            }
+            if (btnImport) {
+                btnImport.classList.toggle('hidden', !isAdminMode);
+            }
+            renderAll();
+            refreshOpenPopup();
+        }
+
+        function refreshOpenPopup() {
+            if (selectedStoreId && markersMap[selectedStoreId] && markersMap[selectedStoreId].isPopupOpen()) {
+                const st = storesData.find(s => s.id === selectedStoreId);
+                if (st) {
+                    markersMap[selectedStoreId].setPopupContent(createPopupHTML(st, resolveStoreStatus(st)));
+                }
+            }
+        }
+
+        function openAdminLoginModal() {
+            const modal = document.getElementById('admin-modal');
+            const input = document.getElementById('admin-pwd-input');
+            const errEl = document.getElementById('admin-modal-error');
+            if (!modal || !input) return;
+            errEl.classList.add('hidden');
+            input.value = '';
+            modal.classList.remove('hidden');
+            setTimeout(() => input.focus(), 50);
+        }
+
+        function closeAdminLoginModal() {
+            const modal = document.getElementById('admin-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        async function verifyAndUnlockAdmin() {
+            const input = document.getElementById('admin-pwd-input');
+            const errEl = document.getElementById('admin-modal-error');
+            const btnSubmit = document.getElementById('btn-submit-admin');
+            if (!input || !btnSubmit) return;
+
+            const pwd = input.value.trim();
+            if (!pwd) {
+                errEl.textContent = '請輸入管理員密碼。';
+                errEl.classList.remove('hidden');
+                return;
+            }
+
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = '驗證中...';
+            errEl.classList.add('hidden');
+
+            try {
+                const res = await fetch(`${CLOUD_API_URL}?action=verify&pwd=${encodeURIComponent(pwd)}&_t=${Date.now()}`, {
+                    method: 'GET',
+                    redirect: 'follow'
+                });
+                const json = await res.json();
+                if (json && json.success) {
+                    adminPassword = pwd;
+                    isAdminMode = true;
+                    sessionStorage.setItem(ADMIN_PWD_SESSION_KEY, pwd);
+                    closeAdminLoginModal();
+                    updateAdminUI();
+                    showToast('管理員驗證通過！已解鎖排程與進度編輯權限。', true);
+
+                    const checkRes = await fetch(`${CLOUD_API_URL}?action=read&_t=${Date.now()}`, { redirect: 'follow' });
+                    const checkJson = await checkRes.json();
+                    if (checkJson && checkJson.success && checkJson.records && Object.keys(checkJson.records).length === 0) {
+                        await syncAllStoresToCloud(true);
+                    }
+                } else {
+                    errEl.textContent = (json && json.message) ? json.message : '管理員密碼錯誤，請重新輸入。';
+                    errEl.classList.remove('hidden');
+                }
+            } catch (err) {
+                console.error('驗證錯誤:', err);
+                errEl.textContent = '無法連線至驗證伺服器，請檢查網路狀態。';
+                errEl.classList.remove('hidden');
+            } finally {
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = '驗證並解鎖';
+            }
+        }
+
+        function openChangePwdModal() {
+            if (!isAdminMode) {
+                openAdminLoginModal();
+                return;
+            }
+            const modal = document.getElementById('change-pwd-modal');
+            const oldInput = document.getElementById('old-pwd-input');
+            const newInput = document.getElementById('new-pwd-input');
+            const confirmInput = document.getElementById('confirm-pwd-input');
+            const errEl = document.getElementById('changepwd-modal-error');
+            if (!modal || !oldInput) return;
+            errEl.classList.add('hidden');
+            oldInput.value = '';
+            newInput.value = '';
+            confirmInput.value = '';
+            modal.classList.remove('hidden');
+            setTimeout(() => oldInput.focus(), 50);
+        }
+
+        function closeChangePwdModal() {
+            const modal = document.getElementById('change-pwd-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        async function submitChangeAdminPassword() {
+            const oldInput = document.getElementById('old-pwd-input');
+            const newInput = document.getElementById('new-pwd-input');
+            const confirmInput = document.getElementById('confirm-pwd-input');
+            const errEl = document.getElementById('changepwd-modal-error');
+            const btnSubmit = document.getElementById('btn-submit-changepwd');
+            if (!oldInput || !newInput || !confirmInput || !btnSubmit) return;
+
+            const oldPwd = oldInput.value.trim();
+            const newPwd = newInput.value.trim();
+            const confirmPwd = confirmInput.value.trim();
+
+            if (!oldPwd || !newPwd || !confirmPwd) {
+                errEl.textContent = '請完整填寫舊密碼與新密碼欄位。';
+                errEl.classList.remove('hidden');
+                return;
+            }
+            if (newPwd.length < 4) {
+                errEl.textContent = '新密碼長度至少需要 4 個字元。';
+                errEl.classList.remove('hidden');
+                return;
+            }
+            if (newPwd !== confirmPwd) {
+                errEl.textContent = '兩次輸入的新密碼不一致，請重新確認。';
+                errEl.classList.remove('hidden');
+                return;
+            }
+
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = '更新中...';
+            errEl.classList.add('hidden');
+
+            try {
+                const query = new URLSearchParams({
+                    action: 'changePassword',
+                    pwd: oldPwd,
+                    newPwd: newPwd,
+                    _t: String(Date.now())
+                });
+                const res = await fetch(`${CLOUD_API_URL}?${query.toString()}`, {
+                    method: 'GET',
+                    redirect: 'follow'
+                });
+                const json = await res.json();
+                if (json && json.success) {
+                    adminPassword = newPwd;
+                    sessionStorage.setItem(ADMIN_PWD_SESSION_KEY, newPwd);
+                    closeChangePwdModal();
+                    showToast('雲端管理員密碼已成功更新！', true);
+                } else {
+                    errEl.textContent = (json && json.error) ? json.error : '舊密碼驗證錯誤，無法變更密碼。';
+                    errEl.classList.remove('hidden');
+                }
+            } catch (err) {
+                console.error('變更密碼失敗:', err);
+                errEl.textContent = '連線至雲端伺服器失敗，請稍後再試。';
+                errEl.classList.remove('hidden');
+            } finally {
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = '確認更新密碼';
+            }
+        }
+
+        // ==========================================
+        // 6. 初始化地圖（NLSC 免費底圖 + 滾輪縮放自動關閉小圖卡）
+        // ==========================================
+        function initializeMap() {
+            const todayLabelEl = document.getElementById('today-date-label');
+            if (todayLabelEl) {
+                todayLabelEl.textContent = `今日基準：${TODAY_STR}（共 ${storesData.length} 間）`;
+            }
+
+            map = L.map('map', {
+                center: [25.0350, 121.4600],
+                zoom: 11,
+                zoomControl: true,
+                closePopupOnClick: false
+            });
+
+            L.tileLayer('https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}', {
+                attribution: '&copy; <a href="https://maps.nlsc.gov.tw/" target="_blank">內政部國土測繪中心 (NLSC)</a>',
+                maxZoom: 19,
+                crossOrigin: true
+            }).addTo(map);
+
+            map.on('zoomstart', () => {
+                if (isProgrammaticFlyTo) return;
+                map.closePopup();
+                selectedStoreId = null;
+                document.querySelectorAll('.store-badge').forEach(el => el.classList.remove('selected'));
+            });
+
+            populateDistrictSelect();
+            renderBrandFilters();
+            updateAdminUI();
+
+            setTimeout(() => {
+                if (map) {
+                    map.invalidateSize();
+                    fitFilteredMarkers();
+                }
+            }, 350);
+
+            fetchCloudProgress(true);
+        }
+
+        // ==========================================
+        // 7. 填充行政區下拉選單
+        // ==========================================
+        function populateDistrictSelect() {
+            const select = document.getElementById('district-select');
+            if (!select) return;
+
+            const districtCountMap = {};
+            const districtCityMap = {};
+            storesData.forEach(s => {
+                districtCountMap[s.district] = (districtCountMap[s.district] || 0) + 1;
+                districtCityMap[s.district] = s.city;
+            });
+
+            const districts = Object.keys(districtCountMap);
+            select.innerHTML = `<option value="ALL">全部行政區 (${storesData.length})</option>` +
+                districts.map(d => `<option value="${d}">${districtCityMap[d]} · ${d} (${districtCountMap[d]})</option>`).join('');
+        }
+
+        // ==========================================
+        // 8. 品牌快速篩選膠囊渲染（指定排序與子品牌歸併）
+        // ==========================================
+        const BRAND_FILTER_ORDER = [
+            'ALL',
+            '瓦城',
+            '1010湘',
+            '時時香',
+            '大心',
+            '非常泰',
+            '瓦城聯合品牌',
+            'YABI',
+            'BOBO',
+            'SHANN SHANN',
+            '樂子',
+            '無限廚房'
+        ];
+
+        function normalizeBrandGroup(rawBrand) {
+            const b = String(rawBrand || '').trim();
+            if (b === '大心MARKET' || b === '大心EXPRESS') return '大心';
+            if (b === '1010湘食堂') return '1010湘';
+            if (b === '瓦城EXPRESS') return '瓦城';
+            return b;
+        }
+
+        function renderBrandFilters() {
+            const container = document.getElementById('brand-filter-bar');
+            if (!container) return;
+            container.innerHTML = BRAND_FILTER_ORDER.map(brand => {
+                const isActive = brandFilter === brand;
+                const label = brand === 'ALL' ? `全品牌 (${storesData.length})` : brand;
+                const activeClasses = isActive
+                    ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
+                    : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700';
+                return `
+                    <button onclick="setBrandFilter('${brand}')" class="px-2.5 py-1 rounded-full text-[11px] font-bold border transition whitespace-nowrap shrink-0 cursor-pointer ${activeClasses}">
+                        ${label}
+                    </button>
+                `;
+            }).join('');
+        }
+
+        window.setBrandFilter = function(brand) {
+            brandFilter = brand;
+            renderBrandFilters();
+            renderAll();
+        };
+
+        // ==========================================
+        // 9. 建立單店 DivIcon（僅顯示店號，懸停時顯示店號+店名）
+        // ==========================================
+        function createStoreDivIcon(store, statusMeta, isSelected) {
+            const pulseClass = statusMeta.key === 'TODAY' ? 'today-pulse' : '';
+            const selectedClass = isSelected ? 'selected' : '';
+            const html = `
+                <div class="store-badge ${pulseClass} ${selectedClass}" style="background-color: ${statusMeta.color};">
+                    <span>${store.id}</span>
+                </div>
+            `;
+            return L.divIcon({
+                className: 'custom-store-icon',
+                html: html,
+                iconSize: [0, 0],
+                iconAnchor: [0, 0],
+                popupAnchor: [0, -34]
+            });
+        }
+
+        // ==========================================
+        // 10. 動態推算對應星期幾之營業時間
+        // ==========================================
+        function getTargetHoursInfo(store, statusMeta) {
+            let refDateStr = TODAY_STR;
+            let basisTag = '今日';
+
+            if (statusMeta.key === 'COMPLETED' || statusMeta.key === 'LOGGED') {
+                if (store.scheduledDate && /^\d{4}-\d{2}-\d{2}$/.test(store.scheduledDate)) {
+                    refDateStr = store.scheduledDate;
+                    basisTag = '完成日';
+                }
+            } else if (store.scheduledDate && /^\d{4}-\d{2}-\d{2}$/.test(store.scheduledDate)) {
+                refDateStr = store.scheduledDate;
+                basisTag = '排程日';
+            }
+
+            const [y, m, d] = refDateStr.split('-').map(Number);
+            const dateObj = new Date(y, m - 1, d);
+            const dayIdx = dateObj.getDay();
+            const dayLabel = WEEKDAY_LABELS[dayIdx] || '一';
+            const hoursText = (Array.isArray(store.hours) && store.hours[dayIdx]) ? store.hours[dayIdx] : '依商場營業時間';
+
+            return {
+                dayLabel,
+                hoursText,
+                basisTag
+            };
+        }
+
+        // ==========================================
+        // 11. 建立彈出操作小卡 HTML（第 1 處日期選擇器：地圖小圖卡）
+        // ==========================================
+        function createPopupHTML(store, statusMeta) {
+            const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${store.lat},${store.lng}`;
+            const isFutureScheduled = store.scheduledDate && store.scheduledDate !== TODAY_STR && statusMeta.key === 'UNSCHEDULED';
+            const fullName = `${store.id} ${store.name}`;
+            const hoursInfo = getTargetHoursInfo(store, statusMeta);
+
+            const adminControlsHTML = isAdminMode ? `
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="font-bold text-slate-700">巡檢／完成日期</label>
+                        <button onclick="setTodaySchedule('${store.id}')" class="text-[11px] text-amber-600 hover:text-amber-700 font-bold underline cursor-pointer">
+                            設為今日 (${TODAY_STR.slice(5)})
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button type="button" onclick="openCustomCalendar(event, '${store.id}')"
+                                class="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 hover:border-amber-500 bg-white text-xs font-mono text-slate-800 flex items-center justify-between transition cursor-pointer">
+                            <span>${store.scheduledDate ? store.scheduledDate.replace(/-/g, ' / ') : '請選擇日期'}</span>
+                            <span class="text-slate-500 text-xs">📅</span>
+                        </button>
+                        ${store.scheduledDate ? `<button type="button" onclick="updateStoreDate('${store.id}', '')" class="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-semibold cursor-pointer">清除</button>` : ''}
+                    </div>
+                    ${isFutureScheduled ? `<p class="text-[10px] text-slate-500 mt-1">已預約 ${store.scheduledDate}（非今日，燈號維持未排程灰燈）</p>` : ''}
+                </div>
+
+                <div>
+                    <div class="font-bold text-slate-700 mb-1">巡檢進度狀態</div>
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <button onclick="updateStoreManualStatus('${store.id}', 'UNSCHEDULED')"
+                                class="py-1.5 px-1 rounded-lg border text-[11px] font-bold transition cursor-pointer ${store.manualStatus === 'UNSCHEDULED' ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}">
+                            待排/排程
+                        </button>
+                        <button onclick="updateStoreManualStatus('${store.id}', 'COMPLETED')"
+                                class="py-1.5 px-1 rounded-lg border text-[11px] font-bold transition cursor-pointer ${store.manualStatus === 'COMPLETED' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50'}">
+                            已完成
+                        </button>
+                        <button onclick="updateStoreManualStatus('${store.id}', 'LOGGED')"
+                                class="py-1.5 px-1 rounded-lg border text-[11px] font-bold transition cursor-pointer ${store.manualStatus === 'LOGGED' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'}">
+                            已登錄
+                        </button>
+                    </div>
+                </div>
+            ` : `
+                <div class="px-2.5 py-2 rounded-lg bg-slate-100 border border-slate-200 text-[11px] text-slate-600 flex items-center justify-between">
+                    <span>進度由管理員統一維護</span>
+                    <span class="font-bold text-slate-700">🔒 唯讀檢視中</span>
+                </div>
+            `;
+
+            return `
+                <div class="text-slate-800 font-sans">
+                    <div class="px-3.5 py-2.5 text-white transition-colors" style="background-color: ${statusMeta.color};">
+                        <div class="flex items-center gap-1.5 mb-0.5">
+                            <span class="px-2 py-0.5 rounded bg-black/25 text-[10px] font-bold">${statusMeta.label}</span>
+                            <span class="text-[11px] opacity-95 font-medium">${store.city} · ${store.district}</span>
+                        </div>
+                        <h3 class="text-sm font-extrabold leading-snug pr-6">${fullName}</h3>
+                        <div class="mt-1.5 pt-1.5 border-t border-white/25 space-y-1 text-[11px] leading-snug">
+                            <div class="flex items-start gap-1 text-white/95">
+                                <span class="shrink-0">📍</span>
+                                <span class="font-medium break-all">${store.address || `${store.city}${store.district}（${store.mall}）`}</span>
+                            </div>
+                            <div class="flex items-start gap-1 text-white/95">
+                                <span class="shrink-0">🕒</span>
+                                <span>週${hoursInfo.dayLabel}營業：<b class="font-mono font-bold">${hoursInfo.hoursText}</b> <span class="opacity-80 text-[10px]">(${hoursInfo.basisTag})</span></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-3 bg-white space-y-2.5 text-xs">
+                        <div class="bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200 space-y-1">
+                            <div class="flex justify-between items-center text-slate-600">
+                                <span>商場位置</span>
+                                <span class="font-bold text-slate-900">${store.mall}</span>
+                            </div>
+                            <div class="flex justify-between items-center pt-1 border-t border-slate-200/80">
+                                <span class="text-slate-600">${(statusMeta.key === 'COMPLETED' || statusMeta.key === 'LOGGED') ? '完成日期' : '預約日期'}</span>
+                                <span class="font-mono font-extrabold ${store.scheduledDate ? (statusMeta.key === 'LOGGED' ? 'text-blue-700' : (statusMeta.key === 'COMPLETED' ? 'text-emerald-700' : 'text-amber-700')) : 'text-slate-400'}">${store.scheduledDate || '尚未設定'}</span>
+                            </div>
+                        </div>
+
+                        ${adminControlsHTML}
+
+                        <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer"
+                           style="color: #ffffff;"
+                           class="gmaps-nav-btn w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 !text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            <span class="text-white">開啟 Google Maps 導航</span>
+                        </a>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ==========================================
+        // 12. 狀態更新操作函式（僅管理員模式可執行並寫入雲端）
+        // ==========================================
+        window.updateStoreDate = async function(storeId, dateStr) {
+            if (!isAdminMode) {
+                showToast('目前為唯讀模式，請先解鎖管理員權限。', false);
+                return;
+            }
+            const store = storesData.find(s => s.id === storeId);
+            if (!store) return;
+            store.scheduledDate = sanitizeDateString(dateStr);
+            saveLocalCache();
+            renderAll();
+            refreshOpenPopup();
+            await pushSingleStoreToCloud(store);
+        };
+
+        window.setTodaySchedule = function(storeId) {
+            window.updateStoreDate(storeId, TODAY_STR);
+        };
+
+        window.updateStoreManualStatus = async function(storeId, newStatus) {
+            if (!isAdminMode) {
+                showToast('目前為唯讀模式，請先解鎖管理員權限。', false);
+                return;
+            }
+            const store = storesData.find(s => s.id === storeId);
+            if (!store) return;
+            store.manualStatus = newStatus;
+            saveLocalCache();
+            renderAll();
+            refreshOpenPopup();
+            await pushSingleStoreToCloud(store);
+        };
+
+        // ==========================================
+        // 13. 統計計算與渲染
+        // ==========================================
+        function updateStatistics() {
+            const scopeStores = storesData.filter(s => {
+                const matchBrand = brandFilter === 'ALL' || normalizeBrandGroup(s.brand) === brandFilter;
+                const matchDistrict = districtFilter === 'ALL' || s.district === districtFilter;
+                return matchBrand && matchDistrict;
+            });
+
+            const total = scopeStores.length;
+            let countUnscheduled = 0;
+            let countToday = 0;
+            let countCompleted = 0;
+            let countLogged = 0;
+
+            scopeStores.forEach(store => {
+                const st = resolveStoreStatus(store).key;
+                if (st === 'UNSCHEDULED') countUnscheduled++;
+                else if (st === 'TODAY') countToday++;
+                else if (st === 'COMPLETED') countCompleted++;
+                else if (st === 'LOGGED') countLogged++;
+            });
+
+            const elUnscheduled = document.getElementById('count-unscheduled');
+            const elToday = document.getElementById('count-today');
+            const elCompleted = document.getElementById('count-completed');
+            const elLogged = document.getElementById('count-logged');
+
+            if (elUnscheduled) elUnscheduled.textContent = countUnscheduled;
+            if (elToday) elToday.textContent = countToday;
+            if (elCompleted) elCompleted.textContent = countCompleted;
+            if (elLogged) elLogged.textContent = countLogged;
+
+            const incompleteTotal = countUnscheduled + countToday;
+            const incompleteRate = total > 0 ? Math.round((incompleteTotal / total) * 100) : 0;
+            const unscheduledPct = total > 0 ? (countUnscheduled / total) * 100 : 0;
+            const todayPct = total > 0 ? (countToday / total) * 100 : 0;
+
+            const elIncRate = document.getElementById('stat-incomplete-rate');
+            const elBarUnsch = document.getElementById('bar-unscheduled');
+            const elBarToday = document.getElementById('bar-today');
+            const elSubInc = document.getElementById('sub-incomplete');
+
+            if (elIncRate) elIncRate.textContent = `未完成率 ${incompleteRate}% (${incompleteTotal}/${total})`;
+            if (elBarUnsch) elBarUnsch.style.width = `${unscheduledPct}%`;
+            if (elBarToday) elBarToday.style.width = `${todayPct}%`;
+            if (elSubInc) {
+                elSubInc.innerHTML = `
+                    <span>未排程 <b>${countUnscheduled}</b> 間 ＋ 今日排程 <b>${countToday}</b> 間</span>
+                    <span class="text-amber-300 underline font-semibold">檢視分布</span>
+                `;
+            }
+
+            const completeTotal = countCompleted + countLogged;
+            const completeRate = total > 0 ? (100 - incompleteRate) : 0;
+            const completedPct = total > 0 ? (countCompleted / total) * 100 : 0;
+            const loggedPct = total > 0 ? (countLogged / total) * 100 : 0;
+
+            const elCompRate = document.getElementById('stat-complete-rate');
+            const elBarComp = document.getElementById('bar-completed');
+            const elBarLog = document.getElementById('bar-logged');
+            const elSubComp = document.getElementById('sub-complete');
+
+            if (elCompRate) elCompRate.textContent = `已完成率 ${completeRate}% (${completeTotal}/${total})`;
+            if (elBarLog) elBarLog.style.width = `${loggedPct}%`;
+            if (elBarComp) elBarComp.style.width = `${completedPct}%`;
+            if (elSubComp) {
+                elSubComp.innerHTML = `
+                    <span>已登錄 <b>${countLogged}</b> 間 ＋ 已完成 <b>${countCompleted}</b> 間</span>
+                    <span class="text-emerald-300 underline font-semibold">檢視分布</span>
+                `;
+            }
+        }
+
+        // ==========================================
+        // 14. 取得目前篩選後的門店清單（五層級優先排序）
+        // ==========================================
+        function getStorePriorityTier(store) {
+            const stKey = resolveStoreStatus(store).key;
+            if (stKey === 'TODAY') return 1;
+            if (stKey === 'UNSCHEDULED') {
+                return (store.scheduledDate && store.scheduledDate.trim() !== '') ? 2 : 3;
+            }
+            if (stKey === 'COMPLETED') return 4;
+            if (stKey === 'LOGGED') return 5;
+            return 6;
+        }
+
+        function compareStoreIdAsc(idA, idB) {
+            return String(idA).localeCompare(String(idB), 'en', { numeric: true, sensitivity: 'base' });
+        }
+
+        function getFilteredStores() {
+            const q = searchQuery.trim().toLowerCase();
+            const filtered = storesData.filter(store => {
+                const stKey = resolveStoreStatus(store).key;
+
+                let matchStatus = true;
+                if (statusFilter === 'INCOMPLETE_GROUP') {
+                    matchStatus = (stKey === 'UNSCHEDULED' || stKey === 'TODAY');
+                } else if (statusFilter === 'COMPLETE_GROUP') {
+                    matchStatus = (stKey === 'COMPLETED' || stKey === 'LOGGED');
+                } else if (statusFilter !== 'ALL') {
+                    matchStatus = (stKey === statusFilter);
+                }
+
+                const matchBrand = brandFilter === 'ALL' || normalizeBrandGroup(store.brand) === brandFilter;
+                const matchDistrict = districtFilter === 'ALL' || store.district === districtFilter;
+                const matchSearch = !q ||
+                    store.id.toLowerCase().includes(q) ||
+                    store.name.toLowerCase().includes(q) ||
+                    store.mall.toLowerCase().includes(q) ||
+                    (store.address && store.address.toLowerCase().includes(q));
+
+                return matchStatus && matchBrand && matchDistrict && matchSearch;
+            });
+
+            return filtered.sort((a, b) => {
+                const tierA = getStorePriorityTier(a);
+                const tierB = getStorePriorityTier(b);
+                if (tierA !== tierB) return tierA - tierB;
+
+                if (tierA === 2 && a.scheduledDate !== b.scheduledDate) {
+                    return a.scheduledDate.localeCompare(b.scheduledDate);
+                }
+
+                return compareStoreIdAsc(a.id, b.id);
+            });
+        }
+
+        // ==========================================
+        // 15. 渲染地圖標記與左側門店卡片清單
+        // ==========================================
+        function renderAll() {
+            updateStatistics();
+
+            if (!map) return;
+            Object.values(markersMap).forEach(marker => map.removeLayer(marker));
+            markersMap = {};
+
+            const filteredStores = getFilteredStores();
+
+            const filterBar = document.getElementById('active-filter-bar');
+            const filterText = document.getElementById('active-filter-text');
+            const hasFilter = statusFilter !== 'ALL' || brandFilter !== 'ALL' || districtFilter !== 'ALL' || searchQuery.trim() !== '';
+
+            if (filterBar && filterText) {
+                if (hasFilter) {
+                    const labels = [];
+                    if (statusFilter === 'INCOMPLETE_GROUP') labels.push('群組：未完成（未排程＋今日排程）');
+                    else if (statusFilter === 'COMPLETE_GROUP') labels.push('群組：已完成（已登錄＋已完成）');
+                    else if (statusFilter !== 'ALL') labels.push(`燈號：${STATUS_META[statusFilter].label}`);
+                    if (districtFilter !== 'ALL') labels.push(`區域：${districtFilter}`);
+                    if (brandFilter !== 'ALL') labels.push(`品牌：${brandFilter}`);
+                    if (searchQuery.trim() !== '') labels.push(`關鍵字：「${searchQuery.trim()}」`);
+                    filterText.textContent = `篩選中 (${filteredStores.length} 間)：${labels.join(' · ')}`;
+                    filterBar.classList.remove('hidden');
+                } else {
+                    filterBar.classList.add('hidden');
+                }
+            }
+
+            document.querySelectorAll('.status-card').forEach(btn => {
+                const key = btn.getAttribute('data-status');
+                if (statusFilter === key) {
+                    btn.classList.add('ring-2', 'ring-white', 'bg-slate-700');
+                } else {
+                    btn.classList.remove('ring-2', 'ring-white', 'bg-slate-700');
+                }
+            });
+
+            const grpInc = document.getElementById('group-incomplete-box');
+            const grpComp = document.getElementById('group-complete-box');
+            if (grpInc) grpInc.classList.toggle('ring-2', statusFilter === 'INCOMPLETE_GROUP');
+            if (grpInc) grpInc.classList.toggle('ring-amber-400', statusFilter === 'INCOMPLETE_GROUP');
+            if (grpComp) grpComp.classList.toggle('ring-2', statusFilter === 'COMPLETE_GROUP');
+            if (grpComp) grpComp.classList.toggle('ring-emerald-400', statusFilter === 'COMPLETE_GROUP');
+
+            const listContainer = document.getElementById('store-list');
+            if (!listContainer) return;
+            listContainer.innerHTML = '';
+
+            if (filteredStores.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="p-8 text-center text-slate-400 text-xs bg-white rounded-2xl border border-dashed border-slate-300">
+                        沒有符合目前篩選條件的門店。<br>
+                        <button onclick="resetFilters()" class="mt-2 text-emerald-600 font-bold underline cursor-pointer">清除所有篩選條件</button>
+                    </div>
+                `;
+                return;
+            }
+
+            filteredStores.forEach(store => {
+                const statusMeta = resolveStoreStatus(store);
+                const isSelected = store.id === selectedStoreId;
+                const fullName = `${store.id} ${store.name}`;
+
+                const marker = L.marker([store.lat, store.lng], {
+                    icon: createStoreDivIcon(store, statusMeta, isSelected),
+                    zIndexOffset: statusMeta.key === 'TODAY' ? 800 : 0
+                }).addTo(map);
+
+                marker.bindTooltip(fullName, {
+                    direction: 'top',
+                    offset: [0, -32],
+                    className: 'store-hover-tooltip',
+                    opacity: 1
+                });
+
+                marker.bindPopup(() => createPopupHTML(store, resolveStoreStatus(store)), {
+                    maxWidth: 320,
+                    closeButton: true
+                });
+
+                marker.on('click', () => {
+                    selectStoreOnMap(store.id, false);
+                });
+
+                markersMap[store.id] = marker;
+
+                const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${store.lat},${store.lng}`;
+                const card = document.createElement('div');
+                card.id = `store-card-${store.id}`;
+                card.className = `p-3.5 rounded-2xl bg-white border transition-all shadow-sm hover:shadow-md cursor-pointer ${
+                    isSelected ? 'border-slate-900 ring-2 ring-slate-900/15' : 'border-slate-200 hover:border-slate-300'
+                }`;
+
+                const footerActionHTML = isAdminMode ? `
+                    <div class="mt-2.5 pt-2.5 border-t border-slate-100 flex items-center gap-1.5" onclick="event.stopPropagation()">
+                        <button type="button" onclick="openCustomCalendar(event, '${store.id}')"
+                                title="點選開啟月曆設定巡檢日期"
+                                class="px-2.5 py-1 rounded-lg border border-slate-300 hover:border-amber-500 text-[11px] font-mono text-slate-700 bg-slate-50 hover:bg-white flex items-center gap-1.5 transition cursor-pointer">
+                            <span>${store.scheduledDate ? store.scheduledDate.replace(/-/g, ' / ') : '設定日期'}</span>
+                            <span class="text-[11px]">📅</span>
+                        </button>
+                        <button onclick="updateStoreManualStatus('${store.id}', 'COMPLETED')"
+                                class="px-2 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer ${store.manualStatus === 'COMPLETED' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50'}">
+                            已完成
+                        </button>
+                        <button onclick="updateStoreManualStatus('${store.id}', 'LOGGED')"
+                                class="px-2 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer ${store.manualStatus === 'LOGGED' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'}">
+                            已登錄
+                        </button>
+                        <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer"
+                           class="ml-auto px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-blue-600 text-white text-[11px] font-bold flex items-center gap-1 transition shrink-0"
+                           title="開啟 Google Maps 導航">
+                            <span>導航</span>
+                        </a>
+                    </div>
+                ` : `
+                    <div class="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-2 text-[11px] text-slate-500" onclick="event.stopPropagation()">
+                        <span class="truncate">📍 ${store.address || `${store.city}${store.district}`}</span>
+                        <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer"
+                           class="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold flex items-center gap-1 transition shrink-0"
+                           title="開啟 Google Maps 導航">
+                            <span>導航</span>
+                        </a>
+                    </div>
+                `;
+
+                card.innerHTML = `
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="w-3 h-3 rounded-full shrink-0" style="background-color: ${statusMeta.color};"></span>
+                            <h3 class="text-sm font-extrabold text-slate-900 truncate">${fullName}</h3>
+                        </div>
+                        <span class="px-2 py-0.5 rounded-full text-[11px] font-bold border shrink-0 ${statusMeta.badgeBg}">
+                            ${statusMeta.label}
+                        </span>
+                    </div>
+
+                    <div class="mt-1.5 flex items-center justify-between text-xs text-slate-500 pl-5">
+                        <span>${store.city} · ${store.district} · ${store.mall}</span>
+                        <span class="font-mono text-[11px] text-slate-600">
+                            ${store.scheduledDate ? `排程：${store.scheduledDate}` : '尚未設定日期'}
+                        </span>
+                    </div>
+
+                    ${footerActionHTML}
+                `;
+
+                card.addEventListener('click', () => {
+                    selectStoreOnMap(store.id, true);
+                });
+
+                listContainer.appendChild(card);
+            });
+        }
+
+        // ==========================================
+        // 16. 地圖定位與標記選取
+        // ==========================================
+        function selectStoreOnMap(storeId, flyToLocation = true) {
+            selectedStoreId = storeId;
+            const store = storesData.find(s => s.id === storeId);
+            const marker = markersMap[storeId];
+            if (!store || !marker) return;
+
+            // 手機版若從「統計與門店清單」分頁點擊門店，自動切回滿版「戰情地圖」分頁再飛越定位
+            if (window.innerWidth < 768 && flyToLocation) {
+                window.switchMobileTab('MAP');
+            }
+
+            document.querySelectorAll('.store-badge').forEach(el => el.classList.remove('selected'));
+            const iconEl = marker.getElement();
+            if (iconEl) {
+                const badge = iconEl.querySelector('.store-badge');
+                if (badge) badge.classList.add('selected');
+            }
+
+            document.querySelectorAll('#store-list > div').forEach(card => {
+                card.classList.remove('border-slate-900', 'ring-2', 'ring-slate-900/15');
+                card.classList.add('border-slate-200');
+            });
+            const activeCard = document.getElementById(`store-card-${storeId}`);
+            if (activeCard) {
+                activeCard.classList.remove('border-slate-200');
+                activeCard.classList.add('border-slate-900', 'ring-2', 'ring-slate-900/15');
+                activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            if (flyToLocation) {
+                map.stop();
+                map.closePopup();
+
+                const targetLatLng = L.latLng(store.lat, store.lng);
+                const targetZoom = 16;
+                const isAlreadyAtTarget = map.getZoom() === targetZoom && map.getCenter().distanceTo(targetLatLng) < 15;
+
+                if (isAlreadyAtTarget) {
+                    isProgrammaticFlyTo = false;
+                    marker.openPopup();
+                    return;
+                }
+
+                isProgrammaticFlyTo = true;
+                map.once('moveend', () => {
+                    isProgrammaticFlyTo = false;
+                    if (selectedStoreId === storeId && markersMap[storeId]) {
+                        markersMap[storeId].openPopup();
+                    }
+                });
+                map.flyTo(targetLatLng, targetZoom, { animate: true, duration: 0.65 });
+            } else {
+                isProgrammaticFlyTo = false;
+                marker.openPopup();
+            }
+        }
+
+        function fitFilteredMarkers() {
+            const markers = Object.values(markersMap);
+            if (!map || markers.length === 0) return;
+            const group = new L.featureGroup(markers);
+            map.fitBounds(group.getBounds(), {
+                padding: [55, 55],
+                maxZoom: 15
+            });
+        }
+
+        window.resetFilters = function() {
+            statusFilter = 'ALL';
+            brandFilter = 'ALL';
+            districtFilter = 'ALL';
+            searchQuery = '';
+            const searchInput = document.getElementById('search-input');
+            const districtSelect = document.getElementById('district-select');
+            if (searchInput) searchInput.value = '';
+            if (districtSelect) districtSelect.value = 'ALL';
+            renderBrandFilters();
+            renderAll();
+            fitFilteredMarkers();
+        };
+
+        // ==========================================
+        // 17. 匯出與匯入進度 CSV 報表
+        // ==========================================
+        function showToast(message, isSuccess = true) {
+            const banner = document.getElementById('toast-banner');
+            const msgEl = document.getElementById('toast-message');
+            if (!banner || !msgEl) return;
+            msgEl.textContent = message;
+            banner.className = `mt-2 px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center justify-between transition ${
+                isSuccess
+                    ? 'bg-emerald-900/90 text-emerald-200 border border-emerald-600'
+                    : 'bg-rose-900/90 text-rose-200 border border-rose-600'
+            }`;
+            banner.classList.remove('hidden');
+            clearTimeout(window._toastTimer);
+            window._toastTimer = setTimeout(() => {
+                banner.classList.add('hidden');
+            }, 5000);
+        }
+
+        function exportProgressCSV() {
+            const headers = ['門店名稱', '店號', '店名', '品牌', '縣市', '行政區', '商場', '地址', '排程日期', '目前燈號狀態', '緯度', '經度'];
+            const rows = storesData.map(s => {
+                const stLabel = resolveStoreStatus(s).label;
+                return [`${s.id} ${s.name}`, s.id, s.name, s.brand, s.city, s.district, s.mall, s.address || '', s.scheduledDate || '未排程', stLabel, s.lat, s.lng].join(',');
+            });
+            const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `瓦城年度巡檢戰情地圖_v2.2_${TODAY_STR}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            showToast('已成功匯出最新巡檢進度 CSV 報表！', true);
+        }
+
+        function importProgressCSV(file) {
+            if (!isAdminMode) {
+                showToast('僅管理員可匯入並覆寫雲端進度。', false);
+                return;
+            }
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const text = (e.target.result || '').replace(/^\uFEFF/, '');
+                    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+                    if (lines.length < 2) {
+                        showToast('匯入失敗：CSV 檔案內容為空或格式不正確。', false);
+                        return;
+                    }
+
+                    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+                    const idxId = headers.indexOf('店號');
+                    const idxFullName = headers.indexOf('門店名稱');
+                    const idxDate = headers.indexOf('排程日期');
+                    const idxStatus = headers.indexOf('目前燈號狀態');
+
+                    if (idxId === -1 && idxFullName === -1) {
+                        showToast('匯入失敗：找不到「店號」或「門店名稱」欄位。', false);
+                        return;
+                    }
+
+                    let matchedCount = 0;
+                    for (let i = 1; i < lines.length; i++) {
+                        const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+                        let storeId = idxId !== -1 ? cols[idxId] : '';
+                        if (!storeId && idxFullName !== -1 && cols[idxFullName]) {
+                            storeId = cols[idxFullName].split(/\s+/)[0];
+                        }
+                        if (!storeId) continue;
+                        if (/^\d+$/.test(storeId) && storeId.length < 3) {
+                            storeId = storeId.padStart(3, '0');
+                        }
+
+                        const targetStore = storesData.find(s => s.id === storeId);
+                        if (!targetStore) continue;
+
+                        const rawDate = idxDate !== -1 ? (cols[idxDate] || '') : '';
+                        const cleanDate = sanitizeDateString(rawDate);
+                        const rawStatus = idxStatus !== -1 ? (cols[idxStatus] || '') : '';
+
+                        targetStore.scheduledDate = cleanDate;
+                        if (rawStatus.includes('已登錄')) {
+                            targetStore.manualStatus = 'LOGGED';
+                        } else if (rawStatus.includes('已完成')) {
+                            targetStore.manualStatus = 'COMPLETED';
+                        } else {
+                            targetStore.manualStatus = 'UNSCHEDULED';
+                        }
+                        matchedCount++;
+                    }
+
+                    if (matchedCount === 0) {
+                        showToast('未比對到任何相符店號，請確認 CSV 來源。', false);
+                        return;
+                    }
+
+                    saveLocalCache();
+                    renderAll();
+                    fitFilteredMarkers();
+                    const cloudOk = await syncAllStoresToCloud(false);
+                    if (cloudOk) {
+                        showToast(`匯入完成！已比對 ${matchedCount} 間並將全區 ${storesData.length} 間同步寫入雲端試算表。`, true);
+                    }
+                } catch (err) {
+                    console.error('匯入 CSV 解析錯誤:', err);
+                    showToast('匯入失敗：CSV 解析發生錯誤。', false);
+                } finally {
+                    const inputEl = document.getElementById('input-import-csv');
+                    if (inputEl) inputEl.value = '';
+                }
+            };
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        // ==========================================
+        // 18. 自訂彈出式月曆邏輯（年月置中、左右箭頭切換月、底部清除／今天）
+        // ==========================================
+        let calTargetStoreId = null;
+        let calViewYear = Number(TODAY_STR.slice(0, 4));
+        let calViewMonth = Number(TODAY_STR.slice(5, 7)); // 1 ~ 12
+
+        function renderCustomCalendarGrid() {
+            const titleEl = document.getElementById('cal-month-title');
+            const gridEl = document.getElementById('cal-days-grid');
+            if (!titleEl || !gridEl) return;
+
+            titleEl.textContent = `${calViewYear}年 ${String(calViewMonth).padStart(2, '0')}月`;
+
+            const targetStore = storesData.find(s => s.id === calTargetStoreId);
+            const selectedDateStr = targetStore ? targetStore.scheduledDate : '';
+
+            const firstDayWeekday = new Date(calViewYear, calViewMonth - 1, 1).getDay();
+            const daysInMonth = new Date(calViewYear, calViewMonth, 0).getDate();
+            const prevMonthDays = new Date(calViewYear, calViewMonth - 1, 0).getDate();
+
+            const cells = [];
+
+            // 上個月補齊空格
+            for (let i = firstDayWeekday - 1; i >= 0; i--) {
+                const dayNum = prevMonthDays - i;
+                cells.push(`<span class="py-1.5 text-slate-300 text-[11px]">${dayNum}</span>`);
+            }
+
+            // 當月日期格
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = `${calViewYear}-${String(calViewMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const isSelected = (dateStr === selectedDateStr);
+                const isToday = (dateStr === TODAY_STR);
+
+                let btnClass = 'py-1.5 rounded-lg font-mono text-xs transition cursor-pointer ';
+                if (isSelected) {
+                    btnClass += 'bg-blue-600 text-white font-extrabold shadow-xs';
+                } else if (isToday) {
+                    btnClass += 'bg-amber-100 text-amber-800 font-extrabold ring-1 ring-amber-400 hover:bg-amber-200';
+                } else {
+                    btnClass += 'text-slate-700 hover:bg-slate-100 font-medium';
+                }
+
+                cells.push(`<button type="button" onclick="selectCustomCalendarDate('${dateStr}')" class="${btnClass}">${d}</button>`);
+            }
+
+            // 下個月補齊 42 格（6 週整齊高度）
+            const remaining = 42 - cells.length;
+            for (let n = 1; n <= remaining; n++) {
+                cells.push(`<span class="py-1.5 text-slate-300 text-[11px]">${n}</span>`);
+            }
+
+            gridEl.innerHTML = cells.join('');
+        }
+
+        window.openCustomCalendar = function(event, storeId) {
+            if (event) event.stopPropagation();
+            if (!isAdminMode) {
+                showToast('目前為唯讀模式，請先解鎖管理員權限。', false);
+                return;
+            }
+            const popover = document.getElementById('custom-calendar-popover');
+            const store = storesData.find(s => s.id === storeId);
+            if (!popover || !store) return;
+
+            calTargetStoreId = storeId;
+            const baseDate = (store.scheduledDate && /^\d{4}-\d{2}-\d{2}$/.test(store.scheduledDate)) ? store.scheduledDate : TODAY_STR;
+            calViewYear = Number(baseDate.slice(0, 4));
+            calViewMonth = Number(baseDate.slice(5, 7));
+
+            renderCustomCalendarGrid();
+            popover.classList.remove('hidden');
+
+            // 智慧定位於觸發按鈕旁，防止超出視窗邊界
+            const triggerEl = event && event.currentTarget ? event.currentTarget : null;
+            if (triggerEl) {
+                const rect = triggerEl.getBoundingClientRect();
+                const popW = 264;
+                const popH = 310;
+                let left = rect.left;
+                let top = rect.bottom + 6;
+
+                if (left + popW > window.innerWidth - 10) {
+                    left = Math.max(10, window.innerWidth - popW - 10);
+                }
+                if (top + popH > window.innerHeight - 10) {
+                    top = Math.max(10, rect.top - popH - 6);
+                }
+                popover.style.left = `${left}px`;
+                popover.style.top = `${top}px`;
+            }
+        };
+
+        window.closeCustomCalendar = function() {
+            const popover = document.getElementById('custom-calendar-popover');
+            if (popover) popover.classList.add('hidden');
+            calTargetStoreId = null;
+        };
+
+        window.selectCustomCalendarDate = async function(dateStr) {
+            const storeId = calTargetStoreId;
+            window.closeCustomCalendar();
+            if (storeId) {
+                await window.updateStoreDate(storeId, dateStr);
+            }
+        };
+
+        // ==========================================
+        // 19. 事件綁定與雙重啟動保護 (DOMContentLoaded + onload)
+        // ==========================================
+        let isAppBootstrapped = false;
+        function bootstrapApp() {
+            if (isAppBootstrapped) return;
+            isAppBootstrapped = true;
+
+            // 自訂月曆控制按鈕綁定
+            const btnPrevMonth = document.getElementById('cal-prev-month');
+            const btnNextMonth = document.getElementById('cal-next-month');
+            const btnCalClear = document.getElementById('cal-btn-clear');
+            const btnCalToday = document.getElementById('cal-btn-today');
+
+            if (btnPrevMonth) {
+                btnPrevMonth.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    calViewMonth--;
+                    if (calViewMonth < 1) {
+                        calViewMonth = 12;
+                        calViewYear--;
+                    }
+                    renderCustomCalendarGrid();
+                });
+            }
+
+            if (btnNextMonth) {
+                btnNextMonth.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    calViewMonth++;
+                    if (calViewMonth > 12) {
+                        calViewMonth = 1;
+                        calViewYear++;
+                    }
+                    renderCustomCalendarGrid();
+                });
+            }
+
+            if (btnCalClear) {
+                btnCalClear.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    await window.selectCustomCalendarDate('');
+                });
+            }
+
+            if (btnCalToday) {
+                btnCalToday.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    await window.selectCustomCalendarDate(TODAY_STR);
+                });
+            }
+
+            // 點擊畫面其他區域時自動關閉月曆彈窗
+            document.addEventListener('click', () => {
+                window.closeCustomCalendar();
+            });
+
+            const btnFit = document.getElementById('btn-fit-bounds');
+            if (btnFit) btnFit.addEventListener('click', fitFilteredMarkers);
+
+            const btnClear = document.getElementById('btn-clear-filter');
+            if (btnClear) btnClear.addEventListener('click', window.resetFilters);
+
+            const btnSync = document.getElementById('btn-sync-cloud');
+            if (btnSync) btnSync.addEventListener('click', () => fetchCloudProgress(false));
+
+            const btnAdmin = document.getElementById('btn-admin-toggle');
+            if (btnAdmin) {
+                btnAdmin.addEventListener('click', () => {
+                    if (isAdminMode) {
+                        isAdminMode = false;
+                        adminPassword = '';
+                        sessionStorage.removeItem(ADMIN_PWD_SESSION_KEY);
+                        updateAdminUI();
+                        showToast('已切換回工程師唯讀模式。', true);
+                    } else {
+                        openAdminLoginModal();
+                    }
+                });
+            }
+
+            const btnCloseModal = document.getElementById('btn-close-admin-modal');
+            const btnCancelAdmin = document.getElementById('btn-cancel-admin');
+            const btnSubmitAdmin = document.getElementById('btn-submit-admin');
+            const pwdInput = document.getElementById('admin-pwd-input');
+            if (btnCloseModal) btnCloseModal.addEventListener('click', closeAdminLoginModal);
+            if (btnCancelAdmin) btnCancelAdmin.addEventListener('click', closeAdminLoginModal);
+            if (btnSubmitAdmin) btnSubmitAdmin.addEventListener('click', verifyAndUnlockAdmin);
+            if (pwdInput) {
+                pwdInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') verifyAndUnlockAdmin();
+                });
+            }
+
+            const btnChangePwd = document.getElementById('btn-change-pwd');
+            const btnCloseChangePwd = document.getElementById('btn-close-changepwd-modal');
+            const btnCancelChangePwd = document.getElementById('btn-cancel-changepwd');
+            const btnSubmitChangePwd = document.getElementById('btn-submit-changepwd');
+            const confirmPwdInput = document.getElementById('confirm-pwd-input');
+            if (btnChangePwd) btnChangePwd.addEventListener('click', openChangePwdModal);
+            if (btnCloseChangePwd) btnCloseChangePwd.addEventListener('click', closeChangePwdModal);
+            if (btnCancelChangePwd) btnCancelChangePwd.addEventListener('click', closeChangePwdModal);
+            if (btnSubmitChangePwd) btnSubmitChangePwd.addEventListener('click', submitChangeAdminPassword);
+            if (confirmPwdInput) {
+                confirmPwdInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') submitChangeAdminPassword();
+                });
+            }
+
+            const btnExport = document.getElementById('btn-export-csv');
+            if (btnExport) btnExport.addEventListener('click', exportProgressCSV);
+
+            const btnImport = document.getElementById('btn-import-csv');
+            const inputImport = document.getElementById('input-import-csv');
+            if (btnImport && inputImport) {
+                btnImport.addEventListener('click', () => {
+                    if (!isAdminMode) {
+                        openAdminLoginModal();
+                        return;
+                    }
+                    inputImport.click();
+                });
+                inputImport.addEventListener('change', (e) => {
+                    const file = e.target.files && e.target.files[0];
+                    if (file) importProgressCSV(file);
+                });
+            }
+
+            const searchInput = document.getElementById('search-input');
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => {
+                    searchQuery = e.target.value;
+                    renderAll();
+                });
+            }
+
+            const districtSelect = document.getElementById('district-select');
+            if (districtSelect) {
+                districtSelect.addEventListener('change', (e) => {
+                    districtFilter = e.target.value;
+                    renderAll();
+                    fitFilteredMarkers();
+                });
+            }
+
+            const grpInc = document.getElementById('group-incomplete-box');
+            if (grpInc) {
+                grpInc.addEventListener('click', () => {
+                    statusFilter = (statusFilter === 'INCOMPLETE_GROUP') ? 'ALL' : 'INCOMPLETE_GROUP';
+                    renderAll();
+                    fitFilteredMarkers();
+                });
+            }
+
+            const grpComp = document.getElementById('group-complete-box');
+            if (grpComp) {
+                grpComp.addEventListener('click', () => {
+                    statusFilter = (statusFilter === 'COMPLETE_GROUP') ? 'ALL' : 'COMPLETE_GROUP';
+                    renderAll();
+                    fitFilteredMarkers();
+                });
+            }
+
+            document.querySelectorAll('.status-card').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const targetStatus = btn.getAttribute('data-status');
+                    statusFilter = (statusFilter === targetStatus) ? 'ALL' : targetStatus;
+                    renderAll();
+                    fitFilteredMarkers();
+                });
+            });
+
+            initializeMap();
+        }
+
+        document.addEventListener('DOMContentLoaded', bootstrapApp);
+        window.onload = bootstrapApp;
+
+        window.addEventListener('resize', () => {
+            if (map) map.invalidateSize();
+        });
+    </script>
+</body>
+</html>
