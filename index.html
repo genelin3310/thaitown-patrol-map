@@ -20,40 +20,40 @@
             width: 100%;
             height: 100dvh;
             overflow: hidden;
-            font-family: 'Inter', 'Noto Sans TC', sans-serif;
-            background-color: #f8fafc;
-        }
-
-        /* 響應式主容器：手機版上下分欄，桌面版左右雙欄 */
+        /* 響應式主容器：手機版滿版視圖切換，桌面版左右雙欄 */
         .app-shell {
             display: flex;
             flex-direction: column;
             width: 100%;
             height: 100dvh;
-        }
-
-        /* 手機版 (< 768px)：上方地圖 46dvh，下方控制面板 54dvh */
-        .map-wrapper {
-            width: 100%;
-            height: 46dvh;
-            min-height: 250px;
             position: relative;
-            background-color: #e2e8f0;
-            order: 1;
         }
 
-        .sidebar-wrapper {
-            width: 100%;
-            height: 54dvh;
-            display: flex;
-            flex-direction: column;
-            background-color: #ffffff;
-            border-top: 1px solid #cbd5e1;
-            z-index: 20;
-            order: 2;
+        /* 手機版 (< 768px)：預留底部 56px 分頁導覽列，地圖與清單各自獨立滿版呈現 */
+        @media (max-width: 767px) {
+            .app-shell {
+                height: calc(100dvh - 56px);
+            }
+            .map-wrapper {
+                width: 100%;
+                height: 100%;
+                position: relative;
+                background-color: #e2e8f0;
+            }
+            .sidebar-wrapper {
+                width: 100%;
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+                background-color: #ffffff;
+                z-index: 20;
+            }
+            .mobile-view-hidden {
+                display: none !important;
+            }
         }
 
-        /* 桌面版 (>= 768px)：左側邊欄 415px，右側滿版地圖 100dvh */
+        /* 桌面版 (>= 768px)：左側邊欄 415px，右側滿版地圖 100dvh（維持原架構不變） */
         @media (min-width: 768px) {
             .app-shell {
                 flex-direction: row;
@@ -217,8 +217,8 @@
 <body>
 
     <div class="app-shell">
-        <!-- 左側（手機版下方）：戰情統計儀表板與門店進度清單 -->
-        <aside class="sidebar-wrapper shadow-xl">
+        <!-- 左側（手機版：統計與清單分頁）：戰情統計儀表板與門店進度清單 -->
+        <aside id="sidebar-panel" class="sidebar-wrapper shadow-xl mobile-view-hidden">
             <!-- 1. 頂部標題列與系統基準日 -->
             <div class="p-3 bg-slate-900 text-white shrink-0 border-b border-slate-800">
                 <div class="flex items-center justify-between gap-2">
@@ -385,8 +385,8 @@
             </div>
         </aside>
 
-        <!-- 右側（手機版上方）：互動地圖容器 -->
-        <main class="map-wrapper">
+        <!-- 右側（手機版：滿版地圖分頁）：互動地圖容器 -->
+        <main id="map-panel" class="map-wrapper">
             <div id="map"></div>
 
             <!-- 右上角浮動按鈕：總覽全部門店 -->
@@ -407,6 +407,18 @@
             </div>
         </main>
     </div>
+
+    <!-- 手機版專屬底部雙分頁切換列（電腦版自動隱藏，不影響電腦版版面） -->
+    <nav id="mobile-bottom-nav" class="md:hidden fixed bottom-0 left-0 right-0 h-[56px] bg-slate-900 border-t border-slate-700 z-[1500] grid grid-cols-2 shadow-2xl">
+        <button id="tab-mobile-map" onclick="switchMobileTab('MAP')" class="flex items-center justify-center gap-2 text-xs font-extrabold text-white bg-emerald-600 transition cursor-pointer">
+            <span class="text-base">🗺️</span>
+            <span>戰情地圖</span>
+        </button>
+        <button id="tab-mobile-list" onclick="switchMobileTab('LIST')" class="flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition cursor-pointer">
+            <span class="text-base">📋</span>
+            <span>統計與門店清單</span>
+        </button>
+    </nav>
 
     <!-- 管理員密碼驗證登入視窗 (Modal) -->
     <div id="admin-modal" class="hidden fixed inset-0 z-[2000] bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -495,10 +507,8 @@
         }
 
         const TODAY_STR = getLocalTodayString();
-        // 雲端 Google Apps Script 網頁應用程式 API 網址
         const CLOUD_API_URL = 'https://script.google.com/macros/s/AKfycbzxfyeptRFJ9eCXhRmmJl1OhuGbFCp4JXxkBX1nZRg3_OKBWkeGMdpfpRuyjEP-UNdN/exec';
 
-        // v1.9 本地快取儲存鍵與管理員工作階段金鑰
         const STORAGE_KEY = 'thai_town_inspection_v1_9_83stores';
         const ADMIN_PWD_SESSION_KEY = 'thai_town_admin_pwd_v1_9';
         const PREV_STORAGE_KEYS = [
@@ -509,7 +519,6 @@
         ];
         const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
 
-        // 管理員狀態（預設 false = 工程師唯讀模式）
         let adminPassword = sessionStorage.getItem(ADMIN_PWD_SESSION_KEY) || '';
         let isAdminMode = Boolean(adminPassword);
 
@@ -544,6 +553,32 @@
                 color: '#2563EB',
                 badgeBg: 'bg-blue-100 text-blue-800 border-blue-300',
                 dotClass: 'bg-blue-600'
+            }
+        };
+
+        // ==========================================
+        // 手機版分頁切換控制（不影響桌面版架構）
+        // ==========================================
+        window.switchMobileTab = function(tabName) {
+            const mapPanel = document.getElementById('map-panel');
+            const sidebarPanel = document.getElementById('sidebar-panel');
+            const btnMap = document.getElementById('tab-mobile-map');
+            const btnList = document.getElementById('tab-mobile-list');
+            if (!mapPanel || !sidebarPanel || !btnMap || !btnList) return;
+
+            if (tabName === 'MAP') {
+                mapPanel.classList.remove('mobile-view-hidden');
+                sidebarPanel.classList.add('mobile-view-hidden');
+                btnMap.className = 'flex items-center justify-center gap-2 text-xs font-extrabold text-white bg-emerald-600 transition cursor-pointer';
+                btnList.className = 'flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition cursor-pointer';
+                if (map) {
+                    setTimeout(() => map.invalidateSize(), 60);
+                }
+            } else {
+                sidebarPanel.classList.remove('mobile-view-hidden');
+                mapPanel.classList.add('mobile-view-hidden');
+                btnList.className = 'flex items-center justify-center gap-2 text-xs font-extrabold text-white bg-emerald-600 transition cursor-pointer';
+                btnMap.className = 'flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition cursor-pointer';
             }
         };
 
@@ -1648,6 +1683,11 @@
             const store = storesData.find(s => s.id === storeId);
             const marker = markersMap[storeId];
             if (!store || !marker) return;
+
+            // 手機版若從「統計與門店清單」分頁點擊門店，自動切回滿版「戰情地圖」分頁再飛越定位
+            if (window.innerWidth < 768 && flyToLocation) {
+                window.switchMobileTab('MAP');
+            }
 
             document.querySelectorAll('.store-badge').forEach(el => el.classList.remove('selected'));
             const iconEl = marker.getElement();
