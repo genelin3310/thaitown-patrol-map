@@ -20,13 +20,16 @@
             width: 100%;
             height: 100dvh;
             overflow: hidden;
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background-color: #f8fafc;
+        }
+
         /* 響應式主容器：手機版滿版視圖切換，桌面版左右雙欄 */
         .app-shell {
             display: flex;
             flex-direction: column;
             width: 100%;
             height: 100dvh;
-            position: relative;
         }
 
         /* 手機版 (< 768px)：預留底部 56px 分頁導覽列，地圖與清單各自獨立滿版呈現 */
@@ -62,6 +65,9 @@
                 width: 415px;
                 min-width: 415px;
                 height: 100dvh;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
                 border-top: none;
                 border-right: 1px solid #cbd5e1;
                 order: 1;
@@ -140,15 +146,25 @@
             z-index: 950 !important;
         }
 
-        /* 今日排程呼吸脈衝效果 */
+        /* 今日排程呼吸脈衝與高識別度閃爍效果 */
         @keyframes amberPulse {
-            0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.85), 0 3px 10px rgba(15, 23, 42, 0.36); }
-            70% { box-shadow: 0 0 0 11px rgba(245, 158, 11, 0), 0 3px 10px rgba(15, 23, 42, 0.36); }
-            100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0), 0 3px 10px rgba(15, 23, 42, 0.36); }
+            0% {
+                box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.95), 0 0 12px rgba(245, 158, 11, 0.85), 0 3px 10px rgba(15, 23, 42, 0.45);
+                background-color: #F59E0B;
+            }
+            50% {
+                box-shadow: 0 0 0 14px rgba(245, 158, 11, 0), 0 0 18px rgba(251, 191, 36, 0.95), 0 3px 10px rgba(15, 23, 42, 0.45);
+                background-color: #D97706;
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(245, 158, 11, 0), 0 0 12px rgba(245, 158, 11, 0.85), 0 3px 10px rgba(15, 23, 42, 0.45);
+                background-color: #F59E0B;
+            }
         }
 
         .store-badge.today-pulse {
-            animation: amberPulse 1.8s infinite;
+            animation: amberPulse 1.35s infinite ease-in-out;
+            border-color: #FEF3C7;
         }
 
         /* 選中時的高亮縮放 */
@@ -1588,7 +1604,8 @@
                 const fullName = `${store.id} ${store.name}`;
 
                 const marker = L.marker([store.lat, store.lng], {
-                    icon: createStoreDivIcon(store, statusMeta, isSelected)
+                    icon: createStoreDivIcon(store, statusMeta, isSelected),
+                    zIndexOffset: statusMeta.key === 'TODAY' ? 800 : 0
                 }).addTo(map);
 
                 marker.bindTooltip(fullName, {
