@@ -1719,7 +1719,104 @@
 
             const btnFit = document.getElementById('btn-fit-bounds');
             if (btnFit) btnFit.addEventListener('click', fitFilteredMarkers);
-// ... existing code ... -->
+
+            const btnClear = document.getElementById('btn-clear-filter');
+            if (btnClear) btnClear.addEventListener('click', window.resetFilters);
+
+            const btnSync = document.getElementById('btn-sync-cloud');
+            if (btnSync) btnSync.addEventListener('click', () => fetchCloudProgress(false));
+
+            const btnAdmin = document.getElementById('btn-admin-toggle');
+            if (btnAdmin) {
+                btnAdmin.addEventListener('click', () => {
+                    if (isAdminMode) {
+                        isAdminMode = false;
+                        adminPassword = '';
+                        sessionStorage.removeItem(ADMIN_PWD_SESSION_KEY);
+                        updateAdminUI();
+                        showToast('已切換回工程師唯讀模式。', true);
+                    } else {
+                        openAdminLoginModal();
+                    }
+                });
+            }
+
+            const btnCloseModal = document.getElementById('btn-close-admin-modal');
+            const btnCancelAdmin = document.getElementById('btn-cancel-admin');
+            const btnSubmitAdmin = document.getElementById('btn-submit-admin');
+            const pwdInput = document.getElementById('admin-pwd-input');
+            if (btnCloseModal) btnCloseModal.addEventListener('click', closeAdminLoginModal);
+            if (btnCancelAdmin) btnCancelAdmin.addEventListener('click', closeAdminLoginModal);
+            if (btnSubmitAdmin) btnSubmitAdmin.addEventListener('click', verifyAndUnlockAdmin);
+            if (pwdInput) {
+                pwdInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') verifyAndUnlockAdmin();
+                });
+            }
+
+            const btnExport = document.getElementById('btn-export-csv');
+            if (btnExport) btnExport.addEventListener('click', exportProgressCSV);
+
+            const btnImport = document.getElementById('btn-import-csv');
+            const inputImport = document.getElementById('input-import-csv');
+            if (btnImport && inputImport) {
+                btnImport.addEventListener('click', () => {
+                    if (!isAdminMode) {
+                        openAdminLoginModal();
+                        return;
+                    }
+                    inputImport.click();
+                });
+                inputImport.addEventListener('change', (e) => {
+                    const file = e.target.files && e.target.files[0];
+                    if (file) importProgressCSV(file);
+                });
+            }
+
+            const searchInput = document.getElementById('search-input');
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => {
+                    searchQuery = e.target.value;
+                    renderAll();
+                });
+            }
+
+            const districtSelect = document.getElementById('district-select');
+            if (districtSelect) {
+                districtSelect.addEventListener('change', (e) => {
+                    districtFilter = e.target.value;
+                    renderAll();
+                    fitFilteredMarkers();
+                });
+            }
+
+            const grpInc = document.getElementById('group-incomplete-box');
+            if (grpInc) {
+                grpInc.addEventListener('click', () => {
+                    statusFilter = (statusFilter === 'INCOMPLETE_GROUP') ? 'ALL' : 'INCOMPLETE_GROUP';
+                    renderAll();
+                    fitFilteredMarkers();
+                });
+            }
+
+            const grpComp = document.getElementById('group-complete-box');
+            if (grpComp) {
+                grpComp.addEventListener('click', () => {
+                    statusFilter = (statusFilter === 'COMPLETE_GROUP') ? 'ALL' : 'COMPLETE_GROUP';
+                    renderAll();
+                    fitFilteredMarkers();
+                });
+            }
+
+            document.querySelectorAll('.status-card').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const targetStatus = btn.getAttribute('data-status');
+                    statusFilter = (statusFilter === targetStatus) ? 'ALL' : targetStatus;
+                    renderAll();
+                    fitFilteredMarkers();
+                });
+            });
+
             initializeMap();
         }
 
