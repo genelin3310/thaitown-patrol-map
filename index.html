@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>瓦城年度巡檢戰情地圖 v2.4｜年度巡檢進度系統</title>
+    <title>瓦城年度巡檢戰情地圖 v2.5｜年度巡檢進度系統</title>
     <!-- 載入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 載入 Leaflet 1.9.4 標準 CDN -->
@@ -236,40 +236,55 @@
     <div class="app-shell">
         <!-- 左側（手機版：統計與清單分頁）：戰情統計儀表板與門店進度清單 -->
         <aside id="sidebar-panel" class="sidebar-wrapper shadow-xl mobile-view-hidden">
-            <!-- 1. 頂部標題列與系統基準日（雙層排版：第一排完整顯示標題與日期，第二排整齊排列功能按鈕） -->
-            <div class="p-3 bg-slate-900 text-white shrink-0 border-b border-slate-800 space-y-2">
-                <!-- 第一排：品牌 LOGO + 完整標題 + 今日基準日 -->
-                <div class="flex items-center gap-2.5">
-                    <!-- 瓦城官方品牌識別 LOGO（正紅底色 + 白色圓潤筆觸「瓦城 THAI TOWN」） -->
-                    <div class="w-9 h-9 rounded-xl bg-[#D90B17] border border-red-400/40 flex items-center justify-center shrink-0 shadow-md overflow-hidden" title="瓦城 THAI TOWN">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 100 100" class="w-full h-full">
-                            <rect width="100" height="100" fill="#D90B17"/>
-                            <g fill="none" stroke="#FFFFFF" stroke-width="6.2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M16 33 Q28 31 40 28"/>
-                                <path d="M23 33 L18 55 C17 61 21 63 26 59 L34 52"/>
-                                <path d="M20 43 C27 40 34 42 34 49 C34 56 38 61 45 59"/>
-                                <path d="M47 41 L57 39"/>
-                                <path d="M52 30 L52 55"/>
-                                <path d="M46 57 L58 51"/>
-                                <path d="M59 35 L82 31"/>
-                                <path d="M62 35 L61 48 C61 55 58 60 54 63"/>
-                                <path d="M62 45 L71 43 C73 43 73 46 72 51 C71 55 68 56 66 54"/>
-                                <path d="M67 24 C71 39 76 53 84 61"/>
-                                <path d="M83 41 C79 50 72 57 63 62"/>
-                            </g>
-                            <circle cx="26.5" cy="49.5" r="2.6" fill="#FFFFFF"/>
-                            <circle cx="77" cy="23.5" r="3.2" fill="#FFFFFF"/>
-                            <text x="50" y="79" text-anchor="middle" fill="#FFFFFF" font-family="'Inter', sans-serif" font-weight="800" font-size="13.5" letter-spacing="0.8">THAI TOWN</text>
-                        </svg>
+            <!-- 1. 頂部標題列與系統基準日（電腦版維持原雙層排版；手機版支援精簡並排與一鍵收合統計區） -->
+            <div id="sidebar-header" class="p-2.5 md:p-3 bg-slate-900 text-white shrink-0 border-b border-slate-800 space-y-1.5 md:space-y-2">
+                <!-- 第一排：品牌 LOGO + 完整標題 + 今日基準日（手機唯讀模式右側並排小圖示按鈕） -->
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0 flex-1">
+                        <!-- 瓦城官方品牌識別 LOGO（正紅底色 + 白色圓潤筆觸「瓦城 THAI TOWN」） -->
+                        <div class="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-[#D90B17] border border-red-400/40 flex items-center justify-center shrink-0 shadow-md overflow-hidden" title="瓦城 THAI TOWN">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 100 100" class="w-full h-full">
+                                <rect width="100" height="100" fill="#D90B17"/>
+                                <g fill="none" stroke="#FFFFFF" stroke-width="6.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M16 33 Q28 31 40 28"/>
+                                    <path d="M23 33 L18 55 C17 61 21 63 26 59 L34 52"/>
+                                    <path d="M20 43 C27 40 34 42 34 49 C34 56 38 61 45 59"/>
+                                    <path d="M47 41 L57 39"/>
+                                    <path d="M52 30 L52 55"/>
+                                    <path d="M46 57 L58 51"/>
+                                    <path d="M59 35 L82 31"/>
+                                    <path d="M62 35 L61 48 C61 55 58 60 54 63"/>
+                                    <path d="M62 45 L71 43 C73 43 73 46 72 51 C71 55 68 56 66 54"/>
+                                    <path d="M67 24 C71 39 76 53 84 61"/>
+                                    <path d="M83 41 C79 50 72 57 63 62"/>
+                                </g>
+                                <circle cx="26.5" cy="49.5" r="2.6" fill="#FFFFFF"/>
+                                <circle cx="77" cy="23.5" r="3.2" fill="#FFFFFF"/>
+                                <text x="50" y="79" text-anchor="middle" fill="#FFFFFF" font-family="'Inter', sans-serif" font-weight="800" font-size="13.5" letter-spacing="0.8">THAI TOWN</text>
+                            </svg>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <h1 class="text-[13px] md:text-[14px] font-extrabold tracking-tight leading-snug text-white truncate">瓦城年度巡檢戰情地圖 v2.5</h1>
+                            <p id="today-date-label" class="text-[10.5px] md:text-[11px] text-slate-300 font-mono leading-tight mt-0.5 truncate">今日基準：載入中...</p>
+                        </div>
                     </div>
-                    <div class="min-w-0 flex-1">
-                        <h1 class="text-[14px] font-extrabold tracking-tight leading-snug text-white">瓦城年度巡檢戰情地圖 v2.4</h1>
-                        <p id="today-date-label" class="text-[11px] text-slate-300 font-mono leading-tight mt-0.5">今日基準：載入中...</p>
+
+                    <!-- 手機版專屬右側精簡控制鈕（唯讀時顯示 🔄/🔒 小圖示並排 + 收合統計鈕；電腦版自動隱藏） -->
+                    <div class="flex md:hidden items-center gap-1 shrink-0">
+                        <button type="button" id="btn-sync-cloud-mobile" onclick="fetchCloudProgress(false)" class="mobile-readonly-inline w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs flex items-center justify-center border border-slate-700 transition cursor-pointer" title="從雲端重新同步">
+                            🔄
+                        </button>
+                        <button type="button" id="btn-admin-toggle-mobile" onclick="openAdminLoginModal()" class="mobile-readonly-inline w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs flex items-center justify-center border border-amber-500/40 transition cursor-pointer" title="解鎖管理員權限">
+                            🔒
+                        </button>
+                        <button type="button" id="btn-mobile-collapse-stats" onclick="toggleMobileStatsCollapse()" class="px-2 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10.5px] font-bold border border-slate-600 flex items-center gap-0.5 transition cursor-pointer" title="收合或展開上方統計區">
+                            <span>▲</span><span>收合</span>
+                        </button>
                     </div>
                 </div>
 
-                <!-- 第二排：功能操作按鈕列（唯讀僅顯示同步與唯讀；管理員解鎖後左側為同步/管理員/改密碼，右側靠右為匯入/匯出） -->
-                <div class="flex items-center justify-between gap-1.5 pt-1.5 border-t border-slate-800/90">
+                <!-- 第二排：功能操作按鈕列（電腦版永遠顯示；手機版僅在管理員解鎖後展開，唯讀時隱藏以節省高度） -->
+                <div id="desktop-admin-toolbar" class="hidden md:flex items-center justify-between gap-1.5 pt-1.5 border-t border-slate-800/90">
                     <!-- 左側操作群組 -->
                     <div class="flex items-center gap-1.5 flex-wrap">
                         <button id="btn-sync-cloud" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 text-[11px] font-semibold border border-slate-700 transition cursor-pointer" title="從雲端試算表重新抓回最新進度">
@@ -294,73 +309,90 @@
                     </div>
                 </div>
 
-                <!-- 2. 雙軌進度率統計條（上方：已完成率雙色條 [左已登錄/右已完成] / 下方：未完成率雙色條 [左未排程/右今日排程]） -->
-                <div class="mt-2.5 p-2.5 rounded-xl bg-slate-800/85 border border-slate-700/80 space-y-2">
-                    <!-- 上方色條：已完成狀態（已登錄 + 已完成，依實際佔比等比例顯示） -->
-                    <div id="group-complete-box" class="cursor-pointer rounded-lg p-1.5 -m-1 hover:bg-slate-700/50 transition" title="點擊在地圖上篩選所有已達成門店">
-                        <div class="flex justify-between items-center text-[11px] mb-1">
-                            <span class="text-slate-200 font-bold">已完成進度（已登錄 ＋ 已完成）</span>
-                            <span id="stat-complete-rate" class="font-mono font-extrabold text-emerald-400">已完成率 0%</span>
+                <!-- 手機版可收合統計區塊（包含精簡進度摘要 + 四色統計卡；電腦版永遠完整展開不收合） -->
+                <div id="mobile-collapsible-stats" class="space-y-2">
+                    <!-- 2A. 手機版專屬單行精簡進度摘要條（md:hidden，省下約 105px 高度） -->
+                    <div id="mobile-compact-progress" class="md:hidden px-2.5 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700/80 space-y-1.5">
+                        <div class="flex items-center justify-between text-[11px]">
+                            <span id="mobile-stat-complete" class="font-bold text-emerald-400 font-mono">已完成 0% (0/83)</span>
+                            <span id="mobile-stat-incomplete" class="font-bold text-amber-400 font-mono">未完成 0% (0/83)</span>
                         </div>
-                        <div class="w-full h-2.5 bg-slate-900/90 rounded-full overflow-hidden flex border border-slate-700/60">
-                            <div id="bar-logged" class="h-full transition-all duration-300" style="width: 0%; background-color: #2563EB;" title="已線上登錄"></div>
-                            <div id="bar-completed" class="h-full transition-all duration-300" style="width: 0%; background-color: #10B981;" title="已完成"></div>
-                        </div>
-                        <div id="sub-complete" class="text-[10px] text-slate-300 mt-1 flex items-center justify-between">
-                            <span>計算中...</span>
-                            <span class="text-slate-400 underline">篩選分布</span>
+                        <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden flex border border-slate-700/60">
+                            <div id="m-bar-logged" class="h-full transition-all duration-300" style="width: 0%; background-color: #2563EB;"></div>
+                            <div id="m-bar-completed" class="h-full transition-all duration-300" style="width: 0%; background-color: #10B981;"></div>
+                            <div id="m-bar-today" class="h-full transition-all duration-300" style="width: 0%; background-color: #F59E0B;"></div>
+                            <div id="m-bar-unscheduled" class="h-full transition-all duration-300" style="width: 0%; background-color: #64748B;"></div>
                         </div>
                     </div>
 
-                    <div class="border-t border-slate-700/70"></div>
+                    <!-- 2B. 電腦版完整雙軌進度率統計條（hidden md:block，維持電腦版 100% 原樣） -->
+                    <div class="hidden md:block mt-2.5 p-2.5 rounded-xl bg-slate-800/85 border border-slate-700/80 space-y-2">
+                        <!-- 上方色條：已完成狀態（已登錄 + 已完成，依實際佔比等比例顯示） -->
+                        <div id="group-complete-box" class="cursor-pointer rounded-lg p-1.5 -m-1 hover:bg-slate-700/50 transition" title="點擊在地圖上篩選所有已達成門店">
+                            <div class="flex justify-between items-center text-[11px] mb-1">
+                                <span class="text-slate-200 font-bold">已完成進度（已登錄 ＋ 已完成）</span>
+                                <span id="stat-complete-rate" class="font-mono font-extrabold text-emerald-400">已完成率 0%</span>
+                            </div>
+                            <div class="w-full h-2.5 bg-slate-900/90 rounded-full overflow-hidden flex border border-slate-700/60">
+                                <div id="bar-logged" class="h-full transition-all duration-300" style="width: 0%; background-color: #2563EB;" title="已線上登錄"></div>
+                                <div id="bar-completed" class="h-full transition-all duration-300" style="width: 0%; background-color: #10B981;" title="已完成"></div>
+                            </div>
+                            <div id="sub-complete" class="text-[10px] text-slate-300 mt-1 flex items-center justify-between">
+                                <span>計算中...</span>
+                                <span class="text-slate-400 underline">篩選分布</span>
+                            </div>
+                        </div>
 
-                    <!-- 下方色條：未完成狀態（未排程 + 今日排程，依實際佔比等比例顯示） -->
-                    <div id="group-incomplete-box" class="cursor-pointer rounded-lg p-1.5 -m-1 hover:bg-slate-700/50 transition" title="點擊在地圖上篩選所有待完成門店">
-                        <div class="flex justify-between items-center text-[11px] mb-1">
-                            <span class="text-slate-200 font-bold">未完成進度（未排程 ＋ 今日排程）</span>
-                            <span id="stat-incomplete-rate" class="font-mono font-extrabold text-amber-400">未完成率 0%</span>
+                        <div class="border-t border-slate-700/70"></div>
+
+                        <!-- 下方色條：未完成狀態（未排程 + 今日排程，依實際佔比等比例顯示） -->
+                        <div id="group-incomplete-box" class="cursor-pointer rounded-lg p-1.5 -m-1 hover:bg-slate-700/50 transition" title="點擊在地圖上篩選所有待完成門店">
+                            <div class="flex justify-between items-center text-[11px] mb-1">
+                                <span class="text-slate-200 font-bold">未完成進度（未排程 ＋ 今日排程）</span>
+                                <span id="stat-incomplete-rate" class="font-mono font-extrabold text-amber-400">未完成率 0%</span>
+                            </div>
+                            <div class="w-full h-2.5 bg-slate-900/90 rounded-full overflow-hidden flex border border-slate-700/60">
+                                <div id="bar-unscheduled" class="h-full transition-all duration-300" style="width: 0%; background-color: #64748B;" title="未排程"></div>
+                                <div id="bar-today" class="h-full transition-all duration-300" style="width: 0%; background-color: #F59E0B;" title="今日排程"></div>
+                            </div>
+                            <div id="sub-incomplete" class="text-[10px] text-slate-300 mt-1 flex items-center justify-between">
+                                <span>計算中...</span>
+                                <span class="text-slate-400 underline">篩選分布</span>
+                            </div>
                         </div>
-                        <div class="w-full h-2.5 bg-slate-900/90 rounded-full overflow-hidden flex border border-slate-700/60">
-                            <div id="bar-unscheduled" class="h-full transition-all duration-300" style="width: 0%; background-color: #64748B;" title="未排程"></div>
-                            <div id="bar-today" class="h-full transition-all duration-300" style="width: 0%; background-color: #F59E0B;" title="今日排程"></div>
-                        </div>
-                        <div id="sub-incomplete" class="text-[10px] text-slate-300 mt-1 flex items-center justify-between">
-                            <span>計算中...</span>
-                            <span class="text-slate-400 underline">篩選分布</span>
-                        </div>
+                    </div>
+
+                    <!-- 3. 四色進度燈號即時統計與篩選卡 -->
+                    <div class="grid grid-cols-4 gap-1.5" id="status-filter-grid">
+                        <button data-status="UNSCHEDULED" class="status-card p-1 md:p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-center transition cursor-pointer">
+                            <div class="flex items-center justify-center gap-1 text-[10px] text-slate-300 font-medium">
+                                <span class="w-2 h-2 rounded-full bg-slate-400"></span>未排程
+                            </div>
+                            <div id="count-unscheduled" class="text-xs md:text-sm font-mono font-extrabold text-white mt-0.5">0</div>
+                        </button>
+                        <button data-status="TODAY" class="status-card p-1 md:p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-amber-500/40 text-center transition cursor-pointer">
+                            <div class="flex items-center justify-center gap-1 text-[10px] text-amber-300 font-bold">
+                                <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>今日排程
+                            </div>
+                            <div id="count-today" class="text-xs md:text-sm font-mono font-extrabold text-amber-400 mt-0.5">0</div>
+                        </button>
+                        <button data-status="COMPLETED" class="status-card p-1 md:p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-emerald-500/40 text-center transition cursor-pointer">
+                            <div class="flex items-center justify-center gap-1 text-[10px] text-emerald-300 font-medium">
+                                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>已完成
+                            </div>
+                            <div id="count-completed" class="text-xs md:text-sm font-mono font-extrabold text-emerald-400 mt-0.5">0</div>
+                        </button>
+                        <button data-status="LOGGED" class="status-card p-1 md:p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-blue-500/40 text-center transition cursor-pointer">
+                            <div class="flex items-center justify-center gap-1 text-[10px] text-blue-300 font-medium">
+                                <span class="w-2 h-2 rounded-full bg-blue-400"></span>已登錄
+                            </div>
+                            <div id="count-logged" class="text-xs md:text-sm font-mono font-extrabold text-blue-400 mt-0.5">0</div>
+                        </button>
                     </div>
                 </div>
 
-                <!-- 3. 四色進度燈號即時統計與篩選卡 -->
-                <div class="grid grid-cols-4 gap-1.5 mt-2" id="status-filter-grid">
-                    <button data-status="UNSCHEDULED" class="status-card p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-center transition cursor-pointer">
-                        <div class="flex items-center justify-center gap-1 text-[10px] text-slate-300 font-medium">
-                            <span class="w-2 h-2 rounded-full bg-slate-400"></span>未排程
-                        </div>
-                        <div id="count-unscheduled" class="text-sm font-mono font-extrabold text-white mt-0.5">0</div>
-                    </button>
-                    <button data-status="TODAY" class="status-card p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-amber-500/40 text-center transition cursor-pointer">
-                        <div class="flex items-center justify-center gap-1 text-[10px] text-amber-300 font-bold">
-                            <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>今日排程
-                        </div>
-                        <div id="count-today" class="text-sm font-mono font-extrabold text-amber-400 mt-0.5">0</div>
-                    </button>
-                    <button data-status="COMPLETED" class="status-card p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-emerald-500/40 text-center transition cursor-pointer">
-                        <div class="flex items-center justify-center gap-1 text-[10px] text-emerald-300 font-medium">
-                            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>已完成
-                        </div>
-                        <div id="count-completed" class="text-sm font-mono font-extrabold text-emerald-400 mt-0.5">0</div>
-                    </button>
-                    <button data-status="LOGGED" class="status-card p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-blue-500/40 text-center transition cursor-pointer">
-                        <div class="flex items-center justify-center gap-1 text-[10px] text-blue-300 font-medium">
-                            <span class="w-2 h-2 rounded-full bg-blue-400"></span>已登錄
-                        </div>
-                        <div id="count-logged" class="text-sm font-mono font-extrabold text-blue-400 mt-0.5">0</div>
-                    </button>
-                </div>
-
-                <!-- 4. 搜尋框與行政區下拉篩選 -->
-                <div class="grid grid-cols-5 gap-1.5 mt-2">
+                <!-- 4. 搜尋框與行政區下拉篩選（永遠固定顯示，方便工程師隨時找店） -->
+                <div class="grid grid-cols-5 gap-1.5">
                     <div class="col-span-3 relative">
                         <input id="search-input" type="text" placeholder="搜尋店號或店名..."
                                class="w-full pl-7 pr-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500" />
@@ -373,13 +405,13 @@
                     </select>
                 </div>
 
-                <!-- 5. 品牌快速篩選膠囊列 -->
-                <div id="brand-filter-bar" class="flex items-center gap-1.5 mt-2 overflow-x-auto pb-0.5">
+                <!-- 5. 品牌快速篩選膠囊列（永遠固定顯示） -->
+                <div id="brand-filter-bar" class="flex items-center gap-1.5 overflow-x-auto pb-0.5">
                     <!-- 由 JavaScript 動態生成 -->
                 </div>
 
                 <!-- 篩選重置提示列 -->
-                <div id="active-filter-bar" class="hidden mt-1.5 pt-1.5 border-t border-slate-800 flex items-center justify-between text-xs">
+                <div id="active-filter-bar" class="hidden pt-1.5 border-t border-slate-800 flex items-center justify-between text-xs">
                     <span id="active-filter-text" class="text-amber-300 font-medium truncate">篩選中</span>
                     <button id="btn-clear-filter" class="text-slate-300 hover:text-white underline text-[11px] shrink-0 ml-2 cursor-pointer">顯示全部 (83)</button>
                 </div>
@@ -568,15 +600,15 @@
         const TODAY_STR = getLocalTodayString();
         const CLOUD_API_URL = 'https://script.google.com/macros/s/AKfycbzxfyeptRFJ9eCXhRmmJl1OhuGbFCp4JXxkBX1nZRg3_OKBWkeGMdpfpRuyjEP-UNdN/exec';
 
-        const STORAGE_KEY = 'thai_town_inspection_v2_4_83stores';
-        const ADMIN_PWD_SESSION_KEY = 'thai_town_admin_pwd_v2_4';
+        const STORAGE_KEY = 'thai_town_inspection_v2_5_83stores';
+        const ADMIN_PWD_SESSION_KEY = 'thai_town_admin_pwd_v2_5';
         const PREV_STORAGE_KEYS = [
+            'thai_town_inspection_v2_4_83stores',
             'thai_town_inspection_v2_3_83stores',
             'thai_town_inspection_v2_2_83stores',
             'thai_town_inspection_v2_1_83stores',
             'thai_town_inspection_v2_0_83stores',
-            'thai_town_inspection_v1_9_83stores',
-            'thai_town_inspection_v1_8_83stores'
+            'thai_town_inspection_v1_9_83stores'
         ];
         const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -641,6 +673,30 @@
                 btnList.className = 'flex items-center justify-center gap-2 text-xs font-extrabold text-white bg-emerald-600 transition cursor-pointer';
                 btnMap.className = 'flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition cursor-pointer';
             }
+        };
+
+        // 手機版統計區收合／展開控制（僅在 < 768px 生效，完全不影響電腦版）
+        let isMobileStatsCollapsed = false;
+        window.setMobileStatsCollapsed = function(collapsed) {
+            if (window.innerWidth >= 768) return;
+            isMobileStatsCollapsed = Boolean(collapsed);
+            const statsBox = document.getElementById('mobile-collapsible-stats');
+            const toggleBtn = document.getElementById('btn-mobile-collapse-stats');
+            if (!statsBox || !toggleBtn) return;
+
+            if (isMobileStatsCollapsed) {
+                statsBox.classList.add('hidden');
+                toggleBtn.innerHTML = '<span>▼</span><span>統計</span>';
+                toggleBtn.className = 'px-2 h-7 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-[10.5px] font-bold border border-emerald-500 flex items-center gap-0.5 transition cursor-pointer';
+            } else {
+                statsBox.classList.remove('hidden');
+                toggleBtn.innerHTML = '<span>▲</span><span>收合</span>';
+                toggleBtn.className = 'px-2 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10.5px] font-bold border border-slate-600 flex items-center gap-0.5 transition cursor-pointer';
+            }
+        };
+
+        window.toggleMobileStatsCollapse = function() {
+            window.setMobileStatsCollapsed(!isMobileStatsCollapsed);
         };
 
         // ==========================================
@@ -1018,6 +1074,9 @@
             const btnAdmin = document.getElementById('btn-admin-toggle');
             const btnChangePwd = document.getElementById('btn-change-pwd');
             const adminFileActions = document.getElementById('admin-file-actions');
+            const desktopToolbar = document.getElementById('desktop-admin-toolbar');
+            const mobileInlineBtns = document.querySelectorAll('.mobile-readonly-inline');
+
             if (btnAdmin) {
                 if (isAdminMode) {
                     btnAdmin.innerHTML = '🔓 管理員';
@@ -1035,6 +1094,20 @@
             if (adminFileActions) {
                 adminFileActions.classList.toggle('hidden', !isAdminMode);
             }
+            // 手機版：唯讀時將同步/唯讀小圖示併入標題右側；解鎖管理員後才展開完整管理按鈕列
+            if (desktopToolbar) {
+                if (isAdminMode) {
+                    desktopToolbar.classList.remove('hidden');
+                    desktopToolbar.classList.add('flex');
+                } else {
+                    desktopToolbar.classList.add('hidden');
+                    desktopToolbar.classList.remove('flex');
+                }
+            }
+            mobileInlineBtns.forEach(el => {
+                el.classList.toggle('hidden', isAdminMode);
+            });
+
             renderAll();
             refreshOpenPopup();
         }
@@ -1574,6 +1647,20 @@
                     <span class="text-emerald-300 underline font-semibold">檢視分布</span>
                 `;
             }
+
+            // 同步更新手機版精簡單行進度摘要條
+            const mStatComp = document.getElementById('mobile-stat-complete');
+            const mStatInc = document.getElementById('mobile-stat-incomplete');
+            const mBarLog = document.getElementById('m-bar-logged');
+            const mBarComp = document.getElementById('m-bar-completed');
+            const mBarToday = document.getElementById('m-bar-today');
+            const mBarUnsch = document.getElementById('m-bar-unscheduled');
+            if (mStatComp) mStatComp.textContent = `已完成 ${completeRate}% (${completeTotal}/${total})`;
+            if (mStatInc) mStatInc.textContent = `未完成 ${incompleteRate}% (${incompleteTotal}/${total})`;
+            if (mBarLog) mBarLog.style.width = `${loggedPct}%`;
+            if (mBarComp) mBarComp.style.width = `${completedPct}%`;
+            if (mBarToday) mBarToday.style.width = `${todayPct}%`;
+            if (mBarUnsch) mBarUnsch.style.width = `${unscheduledPct}%`;
         }
 
         // ==========================================
@@ -1923,7 +2010,7 @@
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', `瓦城年度巡檢戰情地圖_v2.4_${TODAY_STR}.csv`);
+            link.setAttribute('download', `瓦城年度巡檢戰情地圖_v2.5_${TODAY_STR}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -2290,6 +2377,19 @@
                     fitFilteredMarkers();
                 });
             });
+
+            // 手機版滑動門店清單時自動收合統計區，釋放更多瀏覽空間（滑回最頂端時自動展開）
+            const storeListEl = document.getElementById('store-list');
+            if (storeListEl) {
+                storeListEl.addEventListener('scroll', () => {
+                    if (window.innerWidth >= 768) return;
+                    if (storeListEl.scrollTop > 28 && !isMobileStatsCollapsed) {
+                        window.setMobileStatsCollapsed(true);
+                    } else if (storeListEl.scrollTop <= 4 && isMobileStatsCollapsed) {
+                        window.setMobileStatsCollapsed(false);
+                    }
+                }, { passive: true });
+            }
 
             initializeMap();
         }
