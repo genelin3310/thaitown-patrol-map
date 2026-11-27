@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>瓦城年度巡檢戰情地圖 v1.9｜年度巡檢進度系統</title>
+    <title>瓦城年度巡檢戰情地圖 v2.0｜年度巡檢進度系統</title>
     <!-- 載入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 載入 Leaflet 1.9.4 標準 CDN -->
@@ -262,7 +262,7 @@
                             </svg>
                         </div>
                         <div class="min-w-0">
-                            <h1 class="text-[13px] font-extrabold tracking-tight truncate">瓦城年度巡檢戰情地圖 v1.9</h1>
+                            <h1 class="text-[13px] font-extrabold tracking-tight truncate">瓦城年度巡檢戰情地圖 v2.0</h1>
                             <p id="today-date-label" class="text-[10.5px] text-slate-400 font-mono truncate">今日基準：載入中...</p>
                         </div>
                     </div>
@@ -522,12 +522,38 @@
             return `${yyyy}-${mm}-${dd}`;
         }
 
+        /**
+         * 日期防呆正規化：確保無論試算表回傳 YYYY-MM-DD、YYYY/MM/DD 或 ISO 時間戳記，
+         * 都能精準轉為本地 YYYY-MM-DD 且不會因時區少一天
+         */
+        function sanitizeDateString(rawVal) {
+            if (!rawVal) return '';
+            const str = String(rawVal).replace(/^'/, '').trim();
+            if (!str) return '';
+            if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+            if (str.includes('T')) {
+                const d = new Date(str);
+                if (!isNaN(d.getTime())) {
+                    const yyyy = d.getFullYear();
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    return `${yyyy}-${mm}-${dd}`;
+                }
+            }
+            const m = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+            if (m) {
+                return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+            }
+            return '';
+        }
+
         const TODAY_STR = getLocalTodayString();
         const CLOUD_API_URL = 'https://script.google.com/macros/s/AKfycbzxfyeptRFJ9eCXhRmmJl1OhuGbFCp4JXxkBX1nZRg3_OKBWkeGMdpfpRuyjEP-UNdN/exec';
 
-        const STORAGE_KEY = 'thai_town_inspection_v1_9_83stores';
-        const ADMIN_PWD_SESSION_KEY = 'thai_town_admin_pwd_v1_9';
+        const STORAGE_KEY = 'thai_town_inspection_v2_0_83stores';
+        const ADMIN_PWD_SESSION_KEY = 'thai_town_admin_pwd_v2_0';
         const PREV_STORAGE_KEYS = [
+            'thai_town_inspection_v1_9_83stores',
             'thai_town_inspection_v1_8_83stores',
             'thai_town_inspection_v1_7_83stores',
             'thai_town_inspection_v1_6_83stores',
@@ -735,7 +761,7 @@
         ];
 
         // ==========================================
-        // 4. 狀態管理：本地快取 + Google 試算表雲端雙向同步
+        // 4. 狀態管理：本地快取 + Google 試算表雲端雙向同步 (POST 通道防截斷版)
         // ==========================================
         function loadLocalFallbackState() {
             try {
@@ -754,9 +780,12 @@
                 const savedMap = JSON.parse(raw);
                 return DEFAULT_STORES.map(base => {
                     if (savedMap[base.id]) {
+                        const cleanDate = sanitizeDateString(
+                            savedMap[base.id].scheduledDate !== undefined ? savedMap[base.id].scheduledDate : base.scheduledDate
+                        );
                         return {
                             ...base,
-                            scheduledDate: savedMap[base.id].scheduledDate !== undefined ? savedMap[base.id].scheduledDate : base.scheduledDate,
+                            scheduledDate: cleanDate,
                             manualStatus: savedMap[base.id].manualStatus || base.manualStatus || 'UNSCHEDULED'
                         };
                     }
@@ -773,8 +802,8 @@
                 const stateMap = {};
                 storesData.forEach(s => {
                     stateMap[s.id] = {
-                        scheduledDate: s.scheduledDate,
-                        manualStatus: s.manualStatus
+                        scheduledDate: sanitizeDateString(s.scheduledDate),
+                        manualStatus: s.manualStatus || 'UNSCHEDULED'
                     };
                 });
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(stateMap));
@@ -800,6 +829,27 @@
             }
         }
 
+        // 統一 POST JSON 請求函式（使用 text/plain;charset=utf-8 避開 CORS 預檢且支援無限長度封包）
+        async function postToCloudApi(payloadObj) {
+            const res = await fetch(CLOUD_API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'text/plain;charset=utf-8'
+                },
+                body: JSON.stringify(payloadObj),
+                redirect: 'follow'
+            });
+            if (!res.ok) {
+                throw new Error(`HTTP 錯誤狀態碼: ${res.status}`);
+            }
+            const text = await res.text();
+            try {
+                return JSON.parse(text);
+            } catch (parseErr) {
+                throw new Error('後端回傳非 JSON 格式，請確認 Apps Script 已重新部署為新版本');
+            }
+        }
+
         // 從 Google 試算表抓取全隊共用進度
         async function fetchCloudProgress(silent = false) {
             if (!CLOUD_API_URL) return;
@@ -816,7 +866,7 @@
                         storesData = DEFAULT_STORES.map(base => {
                             const rec = json.records[base.id];
                             if (rec) {
-                                const cleanDate = /^\d{4}-\d{2}-\d{2}$/.test(rec.scheduledDate) ? rec.scheduledDate : '';
+                                const cleanDate = sanitizeDateString(rec.scheduledDate);
                                 const validStatuses = ['UNSCHEDULED', 'COMPLETED', 'LOGGED'];
                                 const cleanStatus = validStatuses.includes(rec.manualStatus) ? rec.manualStatus : 'UNSCHEDULED';
                                 return {
@@ -831,16 +881,21 @@
                         renderAll();
                         refreshOpenPopup();
                         const timeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false });
-                        setSyncIndicator('ok', `雲端已同步 (${timeStr})`);
-                        if (!silent) showToast('已從雲端試算表同步最新進度！', true);
+                        setSyncIndicator('ok', `雲端已同步 ${recordKeys.length} 店 (${timeStr})`);
+                        if (!silent) showToast(`已從雲端試算表同步 ${recordKeys.length} 間門店最新進度！`, true);
                     } else {
                         saveLocalCache();
                         renderAll();
-                        setSyncIndicator('ok', '雲端連線正常（使用基準清冊）');
+                        setSyncIndicator('ok', '雲端試算表尚無資料');
                         if (isAdminMode) {
                             await syncAllStoresToCloud(true);
+                        } else if (!silent) {
+                            showToast('雲端試算表目前為空白，請管理員解鎖後初始化同步。', false);
                         }
                     }
+                } else {
+                    setSyncIndicator('warn', '雲端讀取異常');
+                    if (!silent) showToast(`同步失敗：${(json && json.error) || '回傳格式異常'}`, false);
                 }
             } catch (err) {
                 console.warn('讀取雲端進度失敗，切換為本地快取模式:', err);
@@ -849,78 +904,70 @@
             }
         }
 
-        // 管理員單店即時寫入 Google 試算表
+        // 管理員單店即時寫入 Google 試算表（使用 POST JSON 通道）
         async function pushSingleStoreToCloud(store) {
-            if (!isAdminMode || !adminPassword) return;
+            if (!isAdminMode || !adminPassword) return false;
             setSyncIndicator('syncing', `寫入 ${store.id} 至雲端...`);
             try {
-                const res = await fetch(CLOUD_API_URL, {
-                    method: 'POST',
-                    redirect: 'follow',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({
-                        action: 'updateOne',
-                        password: adminPassword,
-                        store: {
-                            id: store.id,
-                            name: store.name,
-                            scheduledDate: store.scheduledDate,
-                            manualStatus: store.manualStatus
-                        }
-                    })
+                const json = await postToCloudApi({
+                    action: 'updateOne',
+                    pwd: adminPassword,
+                    id: store.id,
+                    name: store.name,
+                    date: sanitizeDateString(store.scheduledDate),
+                    status: store.manualStatus || 'UNSCHEDULED'
                 });
-                const json = await res.json();
                 if (json && json.success) {
                     const timeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false });
-                    setSyncIndicator('ok', `雲端已儲存 (${timeStr})`);
+                    setSyncIndicator('ok', `雲端已儲存 ${store.id} (${timeStr})`);
+                    return true;
                 } else {
                     setSyncIndicator('warn', '雲端寫入遭拒');
                     showToast(`雲端同步失敗：${(json && json.error) || '密碼驗證未通過'}`, false);
+                    return false;
                 }
             } catch (err) {
                 console.error('單店寫入雲端錯誤:', err);
                 setSyncIndicator('warn', '雲端寫入失敗');
-                showToast('網路連線異常，變更已暫存本機，請稍後重試。', false);
+                showToast(`寫入失敗：${err.message || '網路異常，變更僅暫存本機'}`, false);
+                return false;
             }
         }
 
-        // 管理員整批同步 83 店至 Google 試算表
+        // 管理員整批同步 83 店至 Google 試算表（使用 POST JSON 封包，徹底突破 GET 長度上限）
         async function syncAllStoresToCloud(isInit = false) {
             if (!isAdminMode || !adminPassword) return false;
             setSyncIndicator('syncing', '整批寫入雲端試算表...');
             try {
-                const res = await fetch(CLOUD_API_URL, {
-                    method: 'POST',
-                    redirect: 'follow',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({
-                        action: 'syncAll',
-                        password: adminPassword,
-                        stores: storesData.map(s => ({
-                            id: s.id,
-                            name: s.name,
-                            scheduledDate: s.scheduledDate,
-                            manualStatus: s.manualStatus
-                        }))
-                    })
+                const payloadStores = storesData.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    scheduledDate: sanitizeDateString(s.scheduledDate),
+                    manualStatus: s.manualStatus || 'UNSCHEDULED'
+                }));
+
+                const json = await postToCloudApi({
+                    action: 'syncAll',
+                    pwd: adminPassword,
+                    stores: payloadStores
                 });
-                const json = await res.json();
-                if (json && json.success) {
+
+                if (json && json.success && Number(json.updatedCount) > 0) {
                     const timeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false });
-                    setSyncIndicator('ok', `全區 ${json.updatedCount} 店已同步 (${timeStr})`);
+                    setSyncIndicator('ok', `全區 ${json.updatedCount} 店已寫入 (${timeStr})`);
                     if (isInit) {
-                        showToast('已自動將 83 間門店最新進度寫入雲端試算表！', true);
+                        showToast(`已成功將 ${json.updatedCount} 間門店最新進度寫入雲端試算表！`, true);
                     }
                     return true;
                 } else {
                     setSyncIndicator('warn', '雲端整批同步失敗');
-                    showToast(`雲端寫入失敗：${(json && json.error) || '權限驗證失敗'}`, false);
+                    showToast(`雲端寫入失敗：${(json && json.error) || '實際寫入筆數為 0，請確認已部署新版 Apps Script'}`, false);
                     return false;
                 }
             } catch (err) {
                 console.error('整批同步錯誤:', err);
                 setSyncIndicator('warn', '雲端整批同步錯誤');
-                showToast('無法連線至雲端試算表，請檢查網路狀態。', false);
+                showToast(`整批同步失敗：${err.message || '無法連線至雲端試算表'}`, false);
                 return false;
             }
         }
@@ -1104,15 +1151,15 @@
             errEl.classList.add('hidden');
 
             try {
-                const res = await fetch(CLOUD_API_URL, {
-                    method: 'POST',
-                    redirect: 'follow',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({
-                        action: 'changePassword',
-                        password: oldPwd,
-                        newPassword: newPwd
-                    })
+                const query = new URLSearchParams({
+                    action: 'changePassword',
+                    pwd: oldPwd,
+                    newPwd: newPwd,
+                    _t: String(Date.now())
+                });
+                const res = await fetch(`${CLOUD_API_URL}?${query.toString()}`, {
+                    method: 'GET',
+                    redirect: 'follow'
                 });
                 const json = await res.json();
                 if (json && json.success) {
@@ -1380,7 +1427,7 @@
             }
             const store = storesData.find(s => s.id === storeId);
             if (!store) return;
-            store.scheduledDate = dateStr;
+            store.scheduledDate = sanitizeDateString(dateStr);
             saveLocalCache();
             renderAll();
             refreshOpenPopup();
@@ -1793,7 +1840,7 @@
             clearTimeout(window._toastTimer);
             window._toastTimer = setTimeout(() => {
                 banner.classList.add('hidden');
-            }, 4500);
+            }, 5000);
         }
 
         function exportProgressCSV() {
@@ -1807,7 +1854,7 @@
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', `瓦城年度巡檢戰情地圖_v1.9_${TODAY_STR}.csv`);
+            link.setAttribute('download', `瓦城年度巡檢戰情地圖_v2.0_${TODAY_STR}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -1842,7 +1889,7 @@
                         return;
                     }
 
-                    let updatedCount = 0;
+                    let matchedCount = 0;
                     for (let i = 1; i < lines.length; i++) {
                         const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
                         let storeId = idxId !== -1 ? cols[idxId] : '';
@@ -1850,12 +1897,15 @@
                             storeId = cols[idxFullName].split(/\s+/)[0];
                         }
                         if (!storeId) continue;
+                        if (/^\d+$/.test(storeId) && storeId.length < 3) {
+                            storeId = storeId.padStart(3, '0');
+                        }
 
                         const targetStore = storesData.find(s => s.id === storeId);
                         if (!targetStore) continue;
 
                         const rawDate = idxDate !== -1 ? (cols[idxDate] || '') : '';
-                        const cleanDate = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : '';
+                        const cleanDate = sanitizeDateString(rawDate);
                         const rawStatus = idxStatus !== -1 ? (cols[idxStatus] || '') : '';
 
                         targetStore.scheduledDate = cleanDate;
@@ -1866,10 +1916,10 @@
                         } else {
                             targetStore.manualStatus = 'UNSCHEDULED';
                         }
-                        updatedCount++;
+                        matchedCount++;
                     }
 
-                    if (updatedCount === 0) {
+                    if (matchedCount === 0) {
                         showToast('未比對到任何相符店號，請確認 CSV 來源。', false);
                         return;
                     }
@@ -1879,7 +1929,7 @@
                     fitFilteredMarkers();
                     const cloudOk = await syncAllStoresToCloud(false);
                     if (cloudOk) {
-                        showToast(`匯入成功！已同步更新 ${updatedCount} 間門店至雲端試算表。`, true);
+                        showToast(`匯入完成！已比對 ${matchedCount} 間並將全區 ${storesData.length} 間同步寫入雲端試算表。`, true);
                     }
                 } catch (err) {
                     console.error('匯入 CSV 解析錯誤:', err);
